@@ -13,9 +13,32 @@ namespace fs = std::filesystem;
 
 namespace qbs {
 
-    enum Compiler { clangd, gpp };
+    enum Compiler { clang, gpp };
     // Major cxx versions taken from https://en.cppreference.com/w/cpp/language/history
     enum CxxVersion { cpp11, cpp14, cpp17, cpp20, cpp23 };
+    enum BuildType { exe, lib };
+    enum FileType { cpp, c, h, hpp };
+
+    class Utils {
+        public:
+            static std::vector<std::string> splitString(std::string str, char delim) {
+                std::vector<std::string> ret;
+                std::string sb;
+                
+                for (const auto &c : str) {
+                    if (c == delim) {
+                        ret.push_back(sb);
+                        sb = "";
+                    }
+
+                    sb += c;
+                }
+
+                if (str[str.length() - 1] != delim && !sb.empty()) ret.push_back(sb);
+
+                return ret;
+            }
+    };
 
     class Cmd {
         private:
@@ -49,6 +72,16 @@ namespace qbs {
             size_t get_length() const {
                 return this->length;
             }
+
+            std::string string() const {
+                std::string sb;
+                for (const auto &arg : args) {
+                    sb += arg;
+                    sb += " ";
+                }
+
+                return sb;
+            }
             
             int run() {
                 std::string cmd;
@@ -57,6 +90,8 @@ namespace qbs {
                     cmd += arg;
                     cmd += " ";
                 }
+
+                std::cout << "[INFO] " << this->string() << std::endl;
                 
                 return std::system(cmd.c_str());
             }
@@ -71,8 +106,70 @@ namespace qbs {
             std::vector<std::string> flags;
             Compiler compiler;
             CxxVersion version;
+            BuildType buildType;
             std::string projectName;
             std::string outputDir;
+
+            void prep_compile_cmd(Cmd *cmd, FileType fileType) {
+                switch (this->compiler) {
+                    case Compiler::clang :
+                        cmd->append("clang");
+                        break;
+                    case Compiler::gpp:
+                        cmd->append("g++");
+                        break;
+                    default:
+                        throw std::invalid_argument("Unknown compiler option");
+                }
+
+                if (fileType == FileType::cpp) {
+                    switch (this->version) {
+                        case CxxVersion::cpp11:
+                            cmd->append("--std=c++11");
+                            break;
+                        case CxxVersion::cpp14:
+                            cmd->append("--std=c++14");
+                            break;
+                        case CxxVersion::cpp17:
+                            cmd->append("--std=c++17");
+                            break;
+                        case CxxVersion::cpp20:
+                            cmd->append("--std=c++20");
+                            break;
+                        case CxxVersion::cpp23:
+                            cmd->append("--std=c++23");
+                            break;
+                        default:
+                            throw std::invalid_argument("Unknown cpp version");
+                    }
+                }
+
+
+                for (const auto &include : includeDirs) {
+                    std::string includeArg;
+                    includeArg += "-I";
+                    includeArg += include;
+                    cmd->append(includeArg);
+                }
+
+                for (const auto &linkDir : linkDirs) {
+                    std::string linkDirArg;
+                    linkDirArg += "-L";
+                    linkDirArg += linkDir;
+                    cmd->append(linkDirArg);
+                }
+
+                for (const auto &linkFile : linkFiles) {
+                    std::string linkFileArg;
+                    linkFileArg += "-l";
+                    linkFileArg += linkFile;
+                    cmd->append(linkFileArg);
+                }
+
+                for (const auto &flag : flags) {
+                    cmd->append(flag);
+                }
+            }
 
             // To handle variadic recursion
             void add_flags() {}
@@ -81,13 +178,25 @@ namespace qbs {
             void link_files() {}
             void add_link_dirs() {}
         public:
+            static FileType get_file_type_from_ext(std::string path) {
+                std::string ext = fs::path(path).extension();
+
+                if (ext == ".cpp") return FileType::cpp;
+                else if (ext == ".c") return FileType::c;
+                else if (ext == ".h") return FileType::h;
+                else if (ext == ".hpp") return FileType::hpp;
+                else throw std::invalid_argument(ext + " is an unknown extension");
+            }
+
             Build(std::string projectName,
                   std::string outputDir = "./",
+                  BuildType buildType = BuildType::exe,
                   CxxVersion version = CxxVersion::cpp20,
                   Compiler compiler = Compiler::gpp) {
                 this->projectName = projectName;
                 this->version = version;
                 this->compiler = compiler;
+                this->buildType = buildType;
 
                 if (outputDir[outputDir.length() - 1] != '/') {
                     outputDir += '/';
@@ -99,10 +208,24 @@ namespace qbs {
                 this->version = version;
             }
 
+            void set_compiler(Compiler compiler) {
+                this->compiler = compiler;
+            }
+
+            void set_build_type(BuildType buildType) {
+                this->buildType = buildType;
+            }
+
             void add_source_file(std::string path) {
                 if (fs::is_directory(path)) {
                     throw std::invalid_argument(path + " is not a file!");
                 }
+
+                std::string fileExt = fs::path(path).extension();
+
+                if (fileExt != ".cpp" && fileExt != ".c")
+                    return;
+                
                 this->sourceFiles.push_back(path);
             }
 
@@ -112,9 +235,17 @@ namespace qbs {
                 this->add_source_files(args...);
             }
 
-            void add_include_dir(std::string path) {
+            void add_include_dir(std::string path, bool recursive = true) {
                 if (!fs::is_directory(path)) {
                     throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                if (recursive) {
+                    for (const auto &entry : fs::directory_iterator(path)) {
+                        if (!entry.is_directory()) continue;
+
+                        this->add_include_dir(entry.path().string());
+                    }
                 }
 
                 this->includeDirs.push_back(path);
@@ -192,73 +323,55 @@ namespace qbs {
 
             int build() {
                 Cmd cmd;
+                int ret;
+                std::vector<std::string> oFiles;
+                FileType ft;
 
-                switch (this->compiler) {
-                    case Compiler::clangd :
-                        cmd.append("clangd");
-                        break;
-                    case Compiler::gpp:
-                        cmd.append("g++");
-                        break;
+                switch (this->buildType) {
+                    case BuildType::exe:
+                        for (const auto &file : sourceFiles) {
+                            cmd.append(file);
+                            ft = Build::get_file_type_from_ext(file);
+                        }   
+                        this->prep_compile_cmd(&cmd, ft);
+                        cmd.append_many("-o", outputDir + projectName);
+                        ret = cmd.run();
+
+                        return ret;
+                    case BuildType::lib:
+                        ret = 0;
+
+                        for (const auto &file : sourceFiles) {
+                            ft = Build::get_file_type_from_ext(file);
+                            cmd.set_length(0);
+                            this->prep_compile_cmd(&cmd, ft);
+
+                            std::string fileName = fs::path(file).stem();
+                            
+                            cmd.append_many("-c", file, "-o", outputDir + fileName + ".o");
+                            oFiles.push_back(outputDir + fileName + ".o");
+
+                            ret += cmd.run();
+                        }
+
+                        cmd.set_length(0);
+
+                        cmd.append_many("ar", "rcs", "lib" + projectName + ".a");
+
+                        for (const auto &oFile : oFiles) {
+                            cmd.append(oFile);
+                        }
+
+                        ret += cmd.run();
+
+                        return ret;
                     default:
-                        throw std::invalid_argument("Unknown compiler option");
-                }
-
-                switch (this->version) {
-                    case CxxVersion::cpp11:
-                        cmd.append("--std=c++11");
-                        break;
-                    case CxxVersion::cpp14:
-                        cmd.append("--std=c++14");
-                        break;
-                    case CxxVersion::cpp17:
-                        cmd.append("--std=c++17");
-                        break;
-                    case CxxVersion::cpp20:
-                        cmd.append("--std=c++20");
-                        break;
-                    case CxxVersion::cpp23:
-                        cmd.append("--std=c++23");
-                        break;
-                    default:
-                        throw std::invalid_argument("Unknown cpp version");
+                        throw std::invalid_argument("Unknown build type");
                 }
 
 
-                for (const auto &include : includeDirs) {
-                    std::string includeArg;
-                    includeArg += "-I";
-                    includeArg += include;
-                    cmd.append(includeArg);
-                }
-
-                for (const auto &linkDir : linkDirs) {
-                    std::string linkDirArg;
-                    linkDirArg += "-L";
-                    linkDirArg += linkDir;
-                    cmd.append(linkDirArg);
-                }
-
-                for (const auto &linkFile : linkFiles) {
-                    std::string linkFileArg;
-                    linkFileArg += "-l";
-                    linkFileArg += linkFile;
-                    cmd.append(linkFileArg);
-                }
-
-                for (const auto &flag : flags) {
-                    cmd.append(flag);
-                }
-
-                for (const auto &file : sourceFiles) {
-                    cmd.append(file);
-                }
 
 
-                cmd.append_many("-o", outputDir + projectName);
-
-
-                return cmd.run();
             }
 
 
