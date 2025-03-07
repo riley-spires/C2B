@@ -1,4 +1,4 @@
-#include "qbs.h"
+#include "../../qbs.h"
 
 
 
@@ -11,7 +11,7 @@ int main() {
 
     build.set_cxx_version(qbs::CxxVersion::cpp23);
 
-    build.add_include_path("include");
+    build.add_include_dir("include");
     build.add_source_dir("src");
 
     int ret = build.build_and_run();
