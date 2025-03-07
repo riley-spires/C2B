@@ -1,10 +1,15 @@
 #ifndef QBS_H
 #define QBS_H
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <filesystem>
+#include <iostream>
+
+namespace fs = std::filesystem;
 
 namespace qbs {
 
@@ -60,23 +65,34 @@ namespace qbs {
     class Build {
         private:
             std::vector<std::string> sourceFiles;
-            std::vector<std::string> includePaths;
+            std::vector<std::string> includeDirs;
+            std::vector<std::string> linkDirs;
+            std::vector<std::string> linkFiles;
             std::vector<std::string> flags;
             Compiler compiler;
             CxxVersion version;
             std::string projectName;
+            std::string outputDir;
 
             // To handle variadic recursion
             void add_flags() {}
             void add_source_files() {}
-            void add_include_paths() {}
+            void add_include_dirs() {}
+            void link_files() {}
+            void add_link_dirs() {}
         public:
             Build(std::string projectName,
+                  std::string outputDir = "./",
                   CxxVersion version = CxxVersion::cpp20,
                   Compiler compiler = Compiler::gpp) {
                 this->projectName = projectName;
                 this->version = version;
                 this->compiler = compiler;
+
+                if (outputDir[outputDir.length() - 1] != '/') {
+                    outputDir += '/';
+                }
+                this->outputDir = outputDir;
             }
 
             void set_cxx_version(CxxVersion version) {
@@ -84,6 +100,9 @@ namespace qbs {
             }
 
             void add_source_file(std::string path) {
+                if (fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a file!");
+                }
                 this->sourceFiles.push_back(path);
             }
 
@@ -93,14 +112,18 @@ namespace qbs {
                 this->add_source_files(args...);
             }
 
-            void add_include_path(std::string path) {
-                this->includePaths.push_back(path);
+            void add_include_dir(std::string path) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                this->includeDirs.push_back(path);
             }
 
             template<typename... Args>
-            void add_include_paths(std::string first, Args... args) {
-                this->add_include_path(first);
-                this->add_include_paths(args...);
+            void add_include_dirs(std::string first, Args... args) {
+                this->add_include_dir(first);
+                this->add_include_dirs(args...);
             }
 
             void add_flag(std::string flag) {
@@ -111,6 +134,60 @@ namespace qbs {
             void add_flags(std::string first, Args... args) {
                 this->add_flag(first);
                 this->add_flags(args...);
+            }
+
+            void add_source_dir(std::string path, bool recursive = true) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                for (const auto &entry : fs::directory_iterator(path)) {
+                    if (entry.is_directory()) {
+                        if (!recursive) continue;
+
+                        this->add_source_dir(entry.path().string());
+                    } else {
+                        this->add_source_file(entry.path().string());
+                    }
+                }
+            }
+
+            void add_link_dir(std::string path) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                this->linkDirs.push_back(path);
+            }
+
+            template<typename... Args>
+            void add_link_dirs(std::string first, Args... args) {
+                this->add_link_dir(first);
+                this->add_link_dirs(args...);
+            }
+
+            void link_file(std::string path) {
+                this->linkFiles.push_back(path);
+            }
+
+            template<typename... Args>
+            void link_files(std::string first, Args... args) {
+                this->link_file(first);
+                this->link_files(args...);
+            }
+
+            void set_output_dir(std::string path) {
+                if (!fs::exists(path)) {
+                    fs::create_directories(path);
+                } else if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                if (path[path.length()-1] != '/') {
+                    path += '/';
+                }
+
+                this->outputDir = path;
             }
 
             int build() {
@@ -148,11 +225,25 @@ namespace qbs {
                 }
 
 
-                for (const auto &include : includePaths) {
+                for (const auto &include : includeDirs) {
                     std::string includeArg;
                     includeArg += "-I";
                     includeArg += include;
                     cmd.append(includeArg);
+                }
+
+                for (const auto &linkDir : linkDirs) {
+                    std::string linkDirArg;
+                    linkDirArg += "-L";
+                    linkDirArg += linkDir;
+                    cmd.append(linkDirArg);
+                }
+
+                for (const auto &linkFile : linkFiles) {
+                    std::string linkFileArg;
+                    linkFileArg += "-l";
+                    linkFileArg += linkFile;
+                    cmd.append(linkFileArg);
                 }
 
                 for (const auto &flag : flags) {
@@ -164,7 +255,7 @@ namespace qbs {
                 }
 
 
-                cmd.append_many("-o", projectName);
+                cmd.append_many("-o", outputDir + projectName);
 
 
                 return cmd.run();
