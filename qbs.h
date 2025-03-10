@@ -172,11 +172,11 @@ namespace qbs {
             }
 
             // To handle variadic recursion
-            void add_flags() {}
-            void add_source_files() {}
-            void add_include_dirs() {}
-            void link_files() {}
-            void add_link_dirs() {}
+            void append_flag() {}
+            void append_include_dir() {}
+            void append_link_dir() {}
+            void append_source_file() {}
+            void link_file() {}
         public:
             static FileType get_file_type_from_ext(std::string path) {
                 std::string ext = fs::path(path).extension();
@@ -216,95 +216,8 @@ namespace qbs {
                 this->buildType = buildType;
             }
 
-            void add_source_file(std::string path) {
-                if (fs::is_directory(path)) {
-                    throw std::invalid_argument(path + " is not a file!");
-                }
-
-                std::string fileExt = fs::path(path).extension();
-
-                if (fileExt != ".cpp" && fileExt != ".c")
-                    return;
-                
-                this->sourceFiles.push_back(path);
-            }
-
-            template<typename... Args>
-            void add_source_files(std::string first, Args... args) {
-                this->add_source_file(first);
-                this->add_source_files(args...);
-            }
-
-            void add_include_dir(std::string path, bool recursive = true) {
-                if (!fs::is_directory(path)) {
-                    throw std::invalid_argument(path + " is not a directory!");
-                }
-
-                if (recursive) {
-                    for (const auto &entry : fs::directory_iterator(path)) {
-                        if (!entry.is_directory()) continue;
-
-                        this->add_include_dir(entry.path().string());
-                    }
-                }
-
-                this->includeDirs.push_back(path);
-            }
-
-            template<typename... Args>
-            void add_include_dirs(std::string first, Args... args) {
-                this->add_include_dir(first);
-                this->add_include_dirs(args...);
-            }
-
-            void add_flag(std::string flag) {
-                this->flags.push_back(flag);
-            }
-
-            template<typename... Args>
-            void add_flags(std::string first, Args... args) {
-                this->add_flag(first);
-                this->add_flags(args...);
-            }
-
-            void add_source_dir(std::string path, bool recursive = true) {
-                if (!fs::is_directory(path)) {
-                    throw std::invalid_argument(path + " is not a directory!");
-                }
-
-                for (const auto &entry : fs::directory_iterator(path)) {
-                    if (entry.is_directory()) {
-                        if (!recursive) continue;
-
-                        this->add_source_dir(entry.path().string());
-                    } else {
-                        this->add_source_file(entry.path().string());
-                    }
-                }
-            }
-
-            void add_link_dir(std::string path) {
-                if (!fs::is_directory(path)) {
-                    throw std::invalid_argument(path + " is not a directory!");
-                }
-
-                this->linkDirs.push_back(path);
-            }
-
-            template<typename... Args>
-            void add_link_dirs(std::string first, Args... args) {
-                this->add_link_dir(first);
-                this->add_link_dirs(args...);
-            }
-
-            void link_file(std::string path) {
-                this->linkFiles.push_back(path);
-            }
-
-            template<typename... Args>
-            void link_files(std::string first, Args... args) {
-                this->link_file(first);
-                this->link_files(args...);
+            void enable_warnings() {
+                this->append_flag("Wall", "Wextra");
             }
 
             void set_output_dir(std::string path) {
@@ -321,6 +234,81 @@ namespace qbs {
                 this->outputDir = path;
             }
 
+            template<typename... Args>
+            void append_source_file(std::string path, Args... args) {
+                if (fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a file!");
+                }
+
+                std::string fileExt = fs::path(path).extension();
+
+                if (fileExt != ".cpp" && fileExt != ".c")
+                    return;
+                
+                this->sourceFiles.push_back(path);
+
+                this->append_source_file(args...);
+            }
+
+            template<typename... Args>
+            void append_include_dir(std::string path, Args... args) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                for (const auto &entry : fs::directory_iterator(path)) {
+                    if (!entry.is_directory()) continue;
+
+                    this->append_include_dir(entry.path().string());
+                }
+
+                this->includeDirs.push_back(path);
+
+                this->append_include_dir(args...);
+            }
+
+            template<typename... Args>
+            void append_flag(std::string first, Args... args) {
+                this->flags.push_back("-" + first);
+
+                this->append_flag(args...);
+            }
+
+            void append_source_dir(std::string path, bool recursive = true) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                for (const auto &entry : fs::directory_iterator(path)) {
+                    if (entry.is_directory()) {
+                        if (!recursive) continue;
+
+                        this->append_source_dir(entry.path().string());
+                    } else {
+                        this->append_source_file(entry.path().string());
+                    }
+                }
+            }
+
+            template<typename... Args>
+            void append_link_dir(std::string path, Args... args) {
+                if (!fs::is_directory(path)) {
+                    throw std::invalid_argument(path + " is not a directory!");
+                }
+
+                this->linkDirs.push_back(path);
+
+                this->append_link_dir(args...);
+            }
+
+            template<typename... Args>
+            void link_file(std::string first, Args... args) {
+                this->linkFiles.push_back(first);
+
+                this->link_file(args...);
+            }
+
+
             int build() {
                 Cmd cmd;
                 int ret;
@@ -329,11 +317,11 @@ namespace qbs {
 
                 switch (this->buildType) {
                     case BuildType::exe:
+                        ft = Build::get_file_type_from_ext(this->sourceFiles[0]);
+                        this->prep_compile_cmd(&cmd, ft);
                         for (const auto &file : sourceFiles) {
                             cmd.append(file);
-                            ft = Build::get_file_type_from_ext(file);
                         }   
-                        this->prep_compile_cmd(&cmd, ft);
                         cmd.append_many("-o", outputDir + projectName);
                         ret = cmd.run();
 

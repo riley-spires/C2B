@@ -5,14 +5,11 @@
 int main() {
     qbs::Build build("main");
 
-    /*build.add_source_file("main.cpp");*/
-
-    build.add_flags("-Wall", "-Wextra");
-
     build.set_cxx_version(qbs::CxxVersion::cpp23);
 
-    build.add_include_dir("include");
-    build.add_source_dir("src");
+    build.enable_warnings();
+    build.append_include_dir("include");
+    build.append_source_dir("src");
 
     int ret = build.build_and_run();
 
