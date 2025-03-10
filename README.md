@@ -10,7 +10,7 @@
 
 Copy `qbs.h` into your repo
 
-See `build.cpp` for a basic usage case. Then bootstrap build.cpp with your favorite
+See `examples/hello-world/build.cpp` for a basic usage case. Then bootstrap build.cpp with your favorite
 c++ compiler. For example:
 
 ```console
@@ -20,6 +20,15 @@ g++ build.cpp -o build
 
 The above commands will compile your project as you have defined in your `build.cpp`
 
+## Dependencies
+
+### Required
+
+- `clang` or `g++`
+
+### Optional (Required for full functionality)
+
+- `wget` or `curl`
 
 ## Credits
 
