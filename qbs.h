@@ -18,9 +18,22 @@ namespace qbs {
     enum CxxVersion { cpp11, cpp14, cpp17, cpp20, cpp23 };
     enum BuildType { exe, lib };
     enum FileType { cpp, c, h, hpp };
+    enum FetchType { git, http };
 
+    /**
+     * @class Utils
+     * @brief Static only class that contains useful functions
+     *
+     */
     class Utils {
         public:
+            /**
+             * @brief Splits the string based on the delimeter provided
+             *
+             * @param str The string to be split
+             * @param delim The character to split the string with
+             * @return A vector of strings containing each substring from the split
+             */
             static std::vector<std::string> splitString(std::string str, char delim) {
                 std::vector<std::string> ret;
                 std::string sb;
@@ -40,39 +53,64 @@ namespace qbs {
             }
     };
 
+    /**
+     * @class Cmd
+     * @brief A class that runs shell commands
+     *
+     */
     class Cmd {
         private:
             std::vector<std::string> args;
             size_t length;
     
             // to handle variadic append_many recursion end
-            void append_many() {};
+            void append() {};
         public:
             template<typename... Args>
             Cmd(Args... args) : args{std::forward<Args>(args)...} {
                 this->length = this->args.size();
             }
 
-            void append(std::string arg) {
+            /**
+             * @brief add a variadic amount of arguments to this Cmd
+             *
+             * @param arg The first argument to append
+             * @param args The rest of the arguments to append
+             */
+            template<typename... Args>
+            void append(std::string arg, Args... args) {
                 this->args.push_back(arg);
                 this->length += 1;
-            }
 
-            template<typename... Args>
-            void append_many(std::string first, Args... args) {
-                append(first);
-                append_many(args...);
+                append(args...);
             }
     
+            
+            /**
+             * @brief Sets the length of the cmd
+             *        Main use is to reuse a Cmd object by set_length(0)
+             *
+             * @param length The new length
+             */
             void set_length(size_t length) {
                 this->length = length;
                 this->args.resize(length);
             }
 
+            /**
+             * @brief Get the current length of the Cmd
+             *
+             * @return The current length
+             */
             size_t get_length() const {
                 return this->length;
             }
 
+            /**
+             * @brief Get a string representation of the Cmd
+             *
+             * @return String representation
+             */
             std::string string() const {
                 std::string sb;
                 for (const auto &arg : args) {
@@ -83,6 +121,11 @@ namespace qbs {
                 return sb;
             }
             
+            /**
+             * @brief Runs the cmd in current user shell
+             *
+             * @return status code from the cmd
+             */
             int run() {
                 std::string cmd;
 
@@ -97,6 +140,11 @@ namespace qbs {
             }
     };
 
+    /**
+     * @class Build
+     * @brief Build a whole project with this api
+     *
+     */
     class Build {
         private:
             std::vector<std::string> sourceFiles;
@@ -171,13 +219,6 @@ namespace qbs {
                 }
             }
 
-            // To handle variadic recursion
-            void append_flag() {}
-            void append_include_dir() {}
-            void append_link_dir() {}
-            void append_source_file() {}
-            void link_file() {}
-        public:
             static FileType get_file_type_from_ext(std::string path) {
                 std::string ext = fs::path(path).extension();
 
@@ -188,6 +229,14 @@ namespace qbs {
                 else throw std::invalid_argument(ext + " is an unknown extension");
             }
 
+
+            // To handle variadic recursion
+            void append_flag() {}
+            void append_include_dir() {}
+            void append_link_dir() {}
+            void append_source_file() {}
+            void link_file() {}
+        public:
             Build(std::string projectName,
                   std::string outputDir = "./",
                   BuildType buildType = BuildType::exe,
@@ -204,22 +253,38 @@ namespace qbs {
                 this->outputDir = outputDir;
             }
 
+            /**
+             * @brief Set the cxx version
+             *
+             * @param version The target CxxVersion
+             */
             void set_cxx_version(CxxVersion version) {
                 this->version = version;
             }
 
+            /**
+             * @brief Set the compiler type (Currently clang, g++ supported)
+             *
+             * @param compiler The target Compiler 
+             */
             void set_compiler(Compiler compiler) {
                 this->compiler = compiler;
             }
 
+            /**
+             * @brief Sets the build type (Executable, or library)
+             *
+             * @param buildType The target BuildType
+             */
             void set_build_type(BuildType buildType) {
                 this->buildType = buildType;
             }
 
-            void enable_warnings() {
-                this->append_flag("Wall", "Wextra");
-            }
-
+            /**
+             * @brief Sets the output directory
+             *
+             * @param path The target output path
+             */
             void set_output_dir(std::string path) {
                 if (!fs::exists(path)) {
                     fs::create_directories(path);
@@ -234,6 +299,60 @@ namespace qbs {
                 this->outputDir = path;
             }
 
+            /**
+             * @brief Append "Wall" and "Wextra" flags
+             */
+            void enable_warnings() {
+                this->append_flag("Wall", "Wextra");
+            }
+
+            /**
+             * @brief Fetches a file from a url
+             *        DEPENDS ON WGET OR CURL
+             *
+             * @param url The url to receive the file
+             * @param fetchType The target FetchType (http, git)
+             * @return Status code from attempting to fetch file
+             */
+            int fetch(std::string url, FetchType fetchType = FetchType::http) {
+                Cmd cmd;
+
+                switch (fetchType) {
+                    case http:
+                            if (std::system("wget") == 127) {
+                                cmd.append("curl");
+                            } else {
+                                cmd.append("wget");
+                            }
+
+                            if (cmd.string() == "wget") {
+                                cmd.append(url);
+                            } else if (cmd.string() == "curl"){
+                                cmd.append("-O", url);
+                            } else {
+                                throw std::invalid_argument("UNREACHABLE: How did you get here?");
+                            }
+
+                        break;
+                    case git:
+                        cmd.append("git", "clone", url);
+                        
+                        break;
+                    
+                    default:
+                        throw std::invalid_argument("Unknown fetch type");
+                }
+
+
+                return cmd.run();
+            }
+
+            /**
+             * @brief Append many source files to build
+             *
+             * @param path The first source file
+             * @param args The rest of the source files
+             */
             template<typename... Args>
             void append_source_file(std::string path, Args... args) {
                 if (fs::is_directory(path)) {
@@ -250,6 +369,12 @@ namespace qbs {
                 this->append_source_file(args...);
             }
 
+            /**
+             * @brief Append many directories to search for included files
+             *
+             * @param path The first include directory
+             * @param args The rest of the include directories
+             */
             template<typename... Args>
             void append_include_dir(std::string path, Args... args) {
                 if (!fs::is_directory(path)) {
@@ -267,6 +392,12 @@ namespace qbs {
                 this->append_include_dir(args...);
             }
 
+            /**
+             * @brief Append many flags to file build cmd (Do not include '-')
+             *
+             * @param first The first flag
+             * @param args The rest of the flags
+             */
             template<typename... Args>
             void append_flag(std::string first, Args... args) {
                 this->flags.push_back("-" + first);
@@ -274,6 +405,12 @@ namespace qbs {
                 this->append_flag(args...);
             }
 
+            /**
+             * @brief Append every source file within the provided directory
+             *
+             * @param path The source directory
+             * @param recursive Whether or not to add source files from subdirectories
+             */
             void append_source_dir(std::string path, bool recursive = true) {
                 if (!fs::is_directory(path)) {
                     throw std::invalid_argument(path + " is not a directory!");
@@ -290,6 +427,12 @@ namespace qbs {
                 }
             }
 
+            /**
+             * @brief Append many directories to search for link files
+             *
+             * @param path The first link directory
+             * @param args The rest of the link directories
+             */
             template<typename... Args>
             void append_link_dir(std::string path, Args... args) {
                 if (!fs::is_directory(path)) {
@@ -301,6 +444,12 @@ namespace qbs {
                 this->append_link_dir(args...);
             }
 
+            /**
+             * @brief Append many files to link
+             *
+             * @param first 
+             * @param args 
+             */
             template<typename... Args>
             void link_file(std::string first, Args... args) {
                 this->linkFiles.push_back(first);
@@ -309,6 +458,11 @@ namespace qbs {
             }
 
 
+            /**
+             * @brief Build the project
+             *
+             * @return Status codes summed up from build commands
+             */
             int build() {
                 Cmd cmd;
                 int ret;
@@ -322,7 +476,7 @@ namespace qbs {
                         for (const auto &file : sourceFiles) {
                             cmd.append(file);
                         }   
-                        cmd.append_many("-o", outputDir + projectName);
+                        cmd.append("-o", outputDir + projectName);
                         ret = cmd.run();
 
                         return ret;
@@ -336,7 +490,7 @@ namespace qbs {
 
                             std::string fileName = fs::path(file).stem();
                             
-                            cmd.append_many("-c", file, "-o", outputDir + fileName + ".o");
+                            cmd.append("-c", file, "-o", outputDir + fileName + ".o");
                             oFiles.push_back(outputDir + fileName + ".o");
 
                             ret += cmd.run();
@@ -344,7 +498,7 @@ namespace qbs {
 
                         cmd.set_length(0);
 
-                        cmd.append_many("ar", "rcs", "lib" + projectName + ".a");
+                        cmd.append("ar", "rcs", "lib" + projectName + ".a");
 
                         for (const auto &oFile : oFiles) {
                             cmd.append(oFile);
@@ -363,7 +517,17 @@ namespace qbs {
             }
 
 
+            /**
+             * @brief Bulid the project then run the final executable
+             *        DOES NOT WORK IF BuildType IS LIBRARY
+             *
+             * @return Status code from build or final executable if built properly
+             */
             int build_and_run() {
+                if (this->buildType == BuildType::lib) {
+                    throw std::logic_error("Cannot run a library");
+                }
+
                 int buildCode = this->build();
             
                 if (buildCode != 0) {
