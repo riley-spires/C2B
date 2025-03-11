@@ -20,38 +20,6 @@ namespace qbs {
     enum FileType { cpp, c, h, hpp };
     enum FetchType { git, http };
 
-    /**
-     * @class Utils
-     * @brief Static only class that contains useful functions
-     *
-     */
-    class Utils {
-        public:
-            /**
-             * @brief Splits the string based on the delimeter provided
-             *
-             * @param str The string to be split
-             * @param delim The character to split the string with
-             * @return A vector of strings containing each substring from the split
-             */
-            static std::vector<std::string> splitString(std::string str, char delim) {
-                std::vector<std::string> ret;
-                std::string sb;
-                
-                for (const auto &c : str) {
-                    if (c == delim) {
-                        ret.push_back(sb);
-                        sb = "";
-                    }
-
-                    sb += c;
-                }
-
-                if (str[str.length() - 1] != delim && !sb.empty()) ret.push_back(sb);
-
-                return ret;
-            }
-    };
 
     /**
      * @class Cmd
@@ -137,6 +105,136 @@ namespace qbs {
                 std::cout << "[INFO] " << cmd << std::endl;
                 
                 return std::system(cmd.c_str());
+            }
+    };
+
+    /**
+     * @class Utils
+     * @brief Static only class that contains useful functions
+     *
+     */
+    class Utils {
+        public:
+            /**
+             * @brief Splits the string based on the delimeter provided
+             *
+             * @param str The string to be split
+             * @param delim The character to split the string with
+             * @return A vector of strings containing each substring from the split
+             */
+            static std::vector<std::string> splitString(std::string str, char delim) {
+                std::vector<std::string> ret;
+                std::string sb;
+                
+                for (const auto &c : str) {
+                    if (c == delim) {
+                        ret.push_back(sb);
+                        sb = "";
+                    }
+
+                    sb += c;
+                }
+
+                if (str[str.length() - 1] != delim && !sb.empty()) ret.push_back(sb);
+
+                return ret;
+            }
+
+            /**
+             * @brief Fetches a file from a url
+             *        DEPENDS ON WGET OR CURL
+             *
+             * @param url The url to receive the file
+             * @param fetchType The target FetchType (http, git)
+             * @return Status code from attempting to fetch file
+             */
+            static int fetch(std::string url, FetchType fetchType = FetchType::http) {
+                Cmd cmd;
+                std::string mode;
+
+                switch (fetchType) {
+                    case http:
+                            if (std::system("wget > /dev/null 2>&1") == 127) {
+                                cmd.append("curl");
+                                mode = "curl";
+                            } else {
+                                cmd.append("wget");
+                                mode = "wget";
+                            }
+
+                            if (mode == "wget") {
+                                cmd.append(url);
+                            } else if (mode == "curl"){
+                                cmd.append("-O", url);
+                            } else {
+                                throw std::logic_error("UNREACHABLE: How did you get here?");
+                            }
+
+                        break;
+                    case git:
+                        cmd.append("git", "clone", url);
+                        
+                        break;
+                    
+                    default:
+                        throw std::invalid_argument("Unknown fetch type");
+                }
+
+
+                return cmd.run();
+            }
+
+            /**
+             * @brief Decompress the provided path
+             *        Currently supports .zip, .tar, .gz, and .rar
+             *        Relies upon the following shell commands:
+             *          tar
+             *          gzip
+             *          unrar
+             *          unzip
+             * @param path The file to be decompressed
+             * @return  The sum of ran command's exit codes
+             */
+            static int decompress(std::string path) {
+                auto file = fs::path(path);
+
+                if (!file.has_extension()) {
+                    throw std::invalid_argument("Unable to compress file that doesn't have an extension");
+                }
+
+
+                std::string ext = file.extension();
+        
+                if (ext != ".gz" && ext != ".tar" && ext != ".zip" && ext != ".rar") {
+                    throw std::invalid_argument(ext + " is not a recognized compressed file type");
+                }
+
+                Cmd cmd;
+                int ret = 0;
+                while (ext == ".gz" || ext == ".tar" || ext == ".zip" || ext == ".rar") {
+                    std::string fileName = file.relative_path().string() + file.filename().string();
+                    if (ext == ".gz") {
+                        std::cout << file << std::endl;
+                        cmd.append("gzip", "-d", file);
+                    } else if (".tar") {
+                        cmd.append("tar", "-xf", file);
+                    } else if (".zip") {
+                        cmd.append("unzip", file);
+                    } else if (".rar") {
+                        cmd.append("unrar", "x", file);
+                    } else {
+                        throw std::logic_error("UNREACHABLE: How did you get here?");
+                    }
+
+                    ret += cmd.run();
+                    cmd.set_length(0);
+                    
+                    int count = file.string().length() - ext.length();
+                    file = fs::path(file.string().substr(0, count));
+                    ext = file.extension();
+                }
+
+                return ret;
             }
     };
 
@@ -237,102 +335,6 @@ namespace qbs {
             void append_source_file() {}
             void link_file() {}
         public:
-            /**
-             * @brief Fetches a file from a url
-             *        DEPENDS ON WGET OR CURL
-             *
-             * @param url The url to receive the file
-             * @param fetchType The target FetchType (http, git)
-             * @return Status code from attempting to fetch file
-             */
-            static int fetch(std::string url, FetchType fetchType = FetchType::http) {
-                Cmd cmd;
-                std::string mode;
-
-                switch (fetchType) {
-                    case http:
-                            if (std::system("wget > /dev/null 2>&1") == 127) {
-                                cmd.append("curl");
-                                mode = "curl";
-                            } else {
-                                cmd.append("wget");
-                                mode = "wget";
-                            }
-
-                            if (mode == "wget") {
-                                cmd.append(url);
-                            } else if (mode == "curl"){
-                                cmd.append("-O", url);
-                            } else {
-                                throw std::logic_error("UNREACHABLE: How did you get here?");
-                            }
-
-                        break;
-                    case git:
-                        cmd.append("git", "clone", url);
-                        
-                        break;
-                    
-                    default:
-                        throw std::invalid_argument("Unknown fetch type");
-                }
-
-
-                return cmd.run();
-            }
-
-            /**
-             * @brief Decompress the provided path
-             *        Currently supports .zip, .tar, .gz, and .rar
-             *        Relies upon the following shell commands:
-             *          tar
-             *          gzip
-             *          unrar
-             *          unzip
-             * @param path The file to be decompressed
-             * @return  The sum of ran command's exit codes
-             */
-            static int decompress(std::string path) {
-                auto file = fs::path(path);
-
-                if (!file.has_extension()) {
-                    throw std::invalid_argument("Unable to compress file that doesn't have an extension");
-                }
-
-
-                std::string ext = file.extension();
-        
-                if (ext != ".gz" && ext != ".tar" && ext != ".zip" && ext != ".rar") {
-                    throw std::invalid_argument(ext + " is not a recognized compressed file type");
-                }
-
-                Cmd cmd;
-                int ret = 0;
-                while (ext == ".gz" || ext == ".tar" || ext == ".zip" || ext == ".rar") {
-                    std::string fileName = file.relative_path().string() + file.filename().string();
-                    if (ext == ".gz") {
-                        std::cout << file << std::endl;
-                        cmd.append("gzip", "-d", file);
-                    } else if (".tar") {
-                        cmd.append("tar", "-xf", file);
-                    } else if (".zip") {
-                        cmd.append("unzip", file);
-                    } else if (".rar") {
-                        cmd.append("unrar", "x", file);
-                    } else {
-                        throw std::logic_error("UNREACHABLE: How did you get here?");
-                    }
-
-                    ret += cmd.run();
-                    cmd.set_length(0);
-                    
-                    int count = file.string().length() - ext.length();
-                    file = fs::path(file.string().substr(0, count));
-                    ext = file.extension();
-                }
-
-                return ret;
-            }
 
             Build(std::string projectName,
                   std::string outputDir = "./",
