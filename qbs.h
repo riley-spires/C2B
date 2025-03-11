@@ -95,12 +95,7 @@ namespace qbs {
              * @return status code from the cmd
              */
             int run() {
-                std::string cmd;
-
-                for (const auto &arg : args) {
-                    cmd += arg;
-                    cmd += " ";
-                }
+                std::string cmd = this->string();
 
                 std::cout << "[INFO] " << cmd << std::endl;
                 
