@@ -103,13 +103,7 @@ namespace qbs {
             }
     };
 
-    /**
-     * @class Utils
-     * @brief Static only class that contains useful functions
-     *
-     */
-    class Utils {
-        public:
+    namespace Utils {
             /**
              * @brief Splits the string based on the delimeter provided
              *
@@ -117,7 +111,7 @@ namespace qbs {
              * @param delim The character to split the string with
              * @return A vector of strings containing each substring from the split
              */
-            static std::vector<std::string> splitString(std::string str, char delim) {
+            std::vector<std::string> splitString(std::string str, char delim) {
                 std::vector<std::string> ret;
                 std::string sb;
                 
@@ -143,7 +137,7 @@ namespace qbs {
              * @param fetchType The target FetchType (http, git)
              * @return Status code from attempting to fetch file
              */
-            static int fetch(std::string url, FetchType fetchType = FetchType::http) {
+            int fetch(std::string url, FetchType fetchType = FetchType::http) {
                 Cmd cmd;
                 std::string mode;
 
@@ -190,7 +184,7 @@ namespace qbs {
              * @param path The file to be decompressed
              * @return  The sum of ran command's exit codes
              */
-            static int decompress(std::string path) {
+            int decompress(std::string path) {
                 auto file = fs::path(path);
 
                 if (!file.has_extension()) {
@@ -230,6 +224,24 @@ namespace qbs {
                 }
 
                 return ret;
+            }
+
+            /**
+             * @brief Makes a directory at the provided path if that directory does not exist
+             *
+             * @param path Path to the directory to be made
+             * @return Return code of `mkdir` Command
+             */
+            int make_dir_if_not_exists(std::string path) {
+                auto dir = fs::directory_entry(path);
+
+                if (dir.exists()) return 0;
+
+                Cmd cmd;
+                
+                cmd.append("mkdir", "-p", path);
+
+                return cmd.run();
             }
     };
 
@@ -511,6 +523,24 @@ namespace qbs {
                 this->link_file(args...);
             }
 
+            /**
+             * @brief Clears the build completely
+             *
+             * @param projectName the new name for the project
+             */
+            void clear(std::string projectName) {
+            this->sourceFiles.clear();
+            this->includeDirs.clear();
+            this-> linkDirs.clear();
+            this->linkFiles.clear();
+            this->flags.clear();
+            this->compiler = Compiler::gpp;
+            this->version = CxxVersion::cpp23;
+            this->buildType = BuildType::exe;
+            this->projectName = projectName;
+            this->outputDir = "./";
+            }
+
 
             /**
              * @brief Build the project
@@ -552,7 +582,7 @@ namespace qbs {
 
                         cmd.set_length(0);
 
-                        cmd.append("ar", "rcs", "lib" + projectName + ".a");
+                        cmd.append("ar", "rcs", outputDir + "lib" + projectName + ".a");
 
                         for (const auto &oFile : oFiles) {
                             cmd.append(oFile);
