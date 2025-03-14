@@ -341,7 +341,7 @@ namespace qbs {
             void append_include_dir() {}
             void append_link_dir() {}
             void append_source_file() {}
-            void link_file() {}
+            void append_link_file() {}
 
             int build_and_run() {
                 if (this->buildType == BuildType::lib) {
@@ -541,10 +541,10 @@ namespace qbs {
              * @param args  The rest of the files to link
              */
             template<typename... Args>
-            void link_file(std::string first, Args... args) {
+            void append_link_file(std::string first, Args... args) {
                 this->linkFiles.push_back(first);
 
-                this->link_file(args...);
+                this->append_link_file(args...);
             }
 
             /**
