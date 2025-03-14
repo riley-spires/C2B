@@ -537,8 +537,8 @@ namespace qbs {
             /**
              * @brief Append many files to link
              *
-             * @param first 
-             * @param args 
+             * @param first The first file to link
+             * @param args  The rest of the files to link
              */
             template<typename... Args>
             void link_file(std::string first, Args... args) {
@@ -626,8 +626,11 @@ namespace qbs {
 
 
             /**
-             * @brief Bulid the project then run the final executable
+             * @brief Bulid the project then run the final executable with the provided arguments as cli arguments
              *        DOES NOT WORK IF BuildType IS LIBRARY
+             *
+             * @param arg The first argument to add to the cli arguments when running the executable
+             * @param args The rest of the arguments to add to the cli arguments when running the executable
              *
              * @return Status code from build or final executable if built properly
              */
