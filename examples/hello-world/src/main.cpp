@@ -3,6 +3,6 @@
 
 
 
-int main() {
-    helloWorld();
+int main(int argc, char **argv) {
+    helloWorld(argc, argv);
 }

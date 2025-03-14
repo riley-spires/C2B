@@ -257,6 +257,7 @@ namespace qbs {
             std::vector<std::string> linkDirs;
             std::vector<std::string> linkFiles;
             std::vector<std::string> flags;
+            std::vector<std::string> runArgs;
             Compiler compiler;
             CxxVersion version;
             BuildType buildType;
@@ -341,6 +342,29 @@ namespace qbs {
             void append_link_dir() {}
             void append_source_file() {}
             void link_file() {}
+
+            int build_and_run() {
+                if (this->buildType == BuildType::lib) {
+                    throw std::logic_error("Cannot run a library");
+                }
+
+                int buildCode = this->build();
+            
+                if (buildCode != 0) {
+                    return buildCode;
+                }
+                    
+                std::string exe = "./" + projectName;
+
+                for (const auto &arg : this->runArgs) {
+                    exe += " ";
+                    exe += arg;
+                }
+
+                Cmd cmd(exe);
+
+                return cmd.run();
+            }
         public:
 
             Build(std::string projectName,
@@ -607,22 +631,10 @@ namespace qbs {
              *
              * @return Status code from build or final executable if built properly
              */
-            int build_and_run() {
-                if (this->buildType == BuildType::lib) {
-                    throw std::logic_error("Cannot run a library");
-                }
-
-                int buildCode = this->build();
-            
-                if (buildCode != 0) {
-                    return buildCode;
-                }
-                    
-                std::string exe = "./" + projectName;
-
-                Cmd cmd(exe);
-
-                return cmd.run();
+            template<typename... Args>
+            int build_and_run(std::string arg, Args... args) {
+                this->runArgs.push_back(arg);
+                return build_and_run(args...);
             }
     };
 
