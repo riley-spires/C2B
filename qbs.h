@@ -2,6 +2,7 @@
 #define QBS_H
 
 #include <cmath>
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -69,7 +70,13 @@ namespace qbs {
             size_t length;
     
             // to handle variadic append_many recursion end
-            void append() {};
+            void append() {}
+
+            void print() {
+                std::string cmd = this->string();
+
+                std::cout << "[INFO] " << cmd << std::endl;
+            }
         public:
             template<typename... Args>
             Cmd(Args... args) : args{std::forward<Args>(args)...} {
@@ -132,11 +139,22 @@ namespace qbs {
              * @return status code from the cmd
              */
             int run() {
-                std::string cmd = this->string();
-
-                std::cout << "[INFO] " << cmd << std::endl;
+                this->print();
                 
-                return std::system(cmd.c_str());
+                return std::system(this->string().c_str());
+            }
+
+            /**
+             * @brief Runs a cmd asynchronously
+             *
+             * @return A future with the return code of the cmd
+             */
+            std::future<int> run_async() {
+                this->print();
+
+                return std::async([this]() {
+                    return std::system(this->string().c_str());
+                });
             }
     };
 
