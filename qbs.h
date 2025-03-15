@@ -13,9 +13,46 @@ namespace fs = std::filesystem;
 
 namespace qbs {
 
-    enum Compiler { clang, gpp };
-    // Major cxx versions taken from https://en.cppreference.com/w/cpp/language/history
-    enum CxxVersion { cpp11, cpp14, cpp17, cpp20, cpp23 };
+    /**
+     * @class Compiler_t
+     * @brief Type for defining custom compilers
+     *
+     */
+    struct Compiler_t {
+        std::string cmdBase;
+    };
+
+    /**
+     * @brief Contains predefined compilers
+     *
+     */
+    namespace Compilers {
+        const Compiler_t GCC = { .cmdBase = "gcc" };
+        const Compiler_t GPP = { .cmdBase = "g++" };
+        const Compiler_t CLANG = { .cmdBase = "clang" };
+    }
+
+    /**
+     * @class Std_t
+     * @brief Type for defining custom standard versions
+     *        Major cxx versions taken from https://en.cppreference.com/w/cpp/language/history
+     * 
+     */
+    struct Std_t {
+        std::string versionFlag;
+    };
+
+    /**
+     * @brief Contains predefined standard versions
+     *
+     */
+    namespace Stds {
+        const Std_t CXX11 = { .versionFlag = "-std=c++11" };
+        const Std_t CXX14 = { .versionFlag = "-std=c++14" };
+        const Std_t CXX17 = { .versionFlag = "-std=c++17" };
+        const Std_t CXX20 = { .versionFlag = "-std=c++20" };
+        const Std_t CXX23 = { .versionFlag = "-std=c++23" };
+    }
     enum BuildType { exe, lib };
     enum FileType { cpp, c, h, hpp };
     enum FetchType { git, http };
@@ -258,45 +295,16 @@ namespace qbs {
             std::vector<std::string> linkFiles;
             std::vector<std::string> flags;
             std::vector<std::string> runArgs;
-            Compiler compiler;
-            CxxVersion version;
+            Compiler_t compiler;
+            Std_t std;
             BuildType buildType;
             std::string projectName;
             std::string outputDir;
 
             void prep_compile_cmd(Cmd *cmd, FileType fileType) {
-                switch (this->compiler) {
-                    case Compiler::clang :
-                        cmd->append("clang");
-                        break;
-                    case Compiler::gpp:
-                        cmd->append("g++");
-                        break;
-                    default:
-                        throw std::invalid_argument("Unknown compiler option");
-                }
+                cmd->append(this->compiler.cmdBase);
 
-                if (fileType == FileType::cpp) {
-                    switch (this->version) {
-                        case CxxVersion::cpp11:
-                            cmd->append("--std=c++11");
-                            break;
-                        case CxxVersion::cpp14:
-                            cmd->append("--std=c++14");
-                            break;
-                        case CxxVersion::cpp17:
-                            cmd->append("--std=c++17");
-                            break;
-                        case CxxVersion::cpp20:
-                            cmd->append("--std=c++20");
-                            break;
-                        case CxxVersion::cpp23:
-                            cmd->append("--std=c++23");
-                            break;
-                        default:
-                            throw std::invalid_argument("Unknown cpp version");
-                    }
-                }
+                cmd->append(this->std.versionFlag);
 
 
                 for (const auto &include : includeDirs) {
@@ -370,10 +378,10 @@ namespace qbs {
             Build(std::string projectName,
                   std::string outputDir = "./",
                   BuildType buildType = BuildType::exe,
-                  CxxVersion version = CxxVersion::cpp20,
-                  Compiler compiler = Compiler::gpp) {
+                  Std_t version = Stds::CXX20,
+                  Compiler_t compiler = Compilers::GPP) {
                 this->projectName = projectName;
-                this->version = version;
+                this->std = version;
                 this->compiler = compiler;
                 this->buildType = buildType;
 
@@ -388,8 +396,8 @@ namespace qbs {
              *
              * @param version The target CxxVersion
              */
-            void set_cxx_version(CxxVersion version) {
-                this->version = version;
+            void set_std(Std_t std) {
+                this->std = std;
             }
 
             /**
@@ -397,7 +405,7 @@ namespace qbs {
              *
              * @param compiler The target Compiler 
              */
-            void set_compiler(Compiler compiler) {
+            void set_compiler(Compiler_t compiler) {
                 this->compiler = compiler;
             }
 
@@ -548,21 +556,21 @@ namespace qbs {
             }
 
             /**
-             * @brief Clears the build completely
+             * @brief Clears the build completely to defaults
              *
              * @param projectName the new name for the project
              */
             void clear(std::string projectName) {
-            this->sourceFiles.clear();
-            this->includeDirs.clear();
-            this-> linkDirs.clear();
-            this->linkFiles.clear();
-            this->flags.clear();
-            this->compiler = Compiler::gpp;
-            this->version = CxxVersion::cpp23;
-            this->buildType = BuildType::exe;
-            this->projectName = projectName;
-            this->outputDir = "./";
+                this->sourceFiles.clear();
+                this->includeDirs.clear();
+                this-> linkDirs.clear();
+                this->linkFiles.clear();
+                this->flags.clear();
+                this->compiler = Compilers::GPP;
+                this->std = Stds::CXX20;
+                this->buildType = BuildType::exe;
+                this->projectName = projectName;
+                this->outputDir = "./";
             }
 
 

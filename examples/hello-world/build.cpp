@@ -5,8 +5,7 @@
 int main() {
     qbs::Build build("main");
 
-    build.set_cxx_version(qbs::CxxVersion::cpp23);
-
+    build.set_std(qbs::Stds::CXX23);
     build.enable_warnings();
     build.append_include_dir("include");
     build.append_source_dir("src");
