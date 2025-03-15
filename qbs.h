@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -166,22 +167,17 @@ namespace qbs {
              * @param delim The character to split the string with
              * @return A vector of strings containing each substring from the split
              */
-            std::vector<std::string> splitString(std::string str, char delim) {
-                std::vector<std::string> ret;
-                std::string sb;
-                
-                for (const auto &c : str) {
-                    if (c == delim) {
-                        ret.push_back(sb);
-                        sb = "";
-                    }
+            std::vector<std::string> split_string(std::string str, char delim = ' ') {
+                std::vector<std::string> tokens;
+                std::stringstream inputStream(str);
+                std::string curr_token;
 
-                    sb += c;
+                while (std::getline(inputStream, curr_token, delim)) {
+                    tokens.push_back(curr_token);
                 }
 
-                if (str[str.length() - 1] != delim && !sb.empty()) ret.push_back(sb);
 
-                return ret;
+                return tokens;
             }
 
             /**
