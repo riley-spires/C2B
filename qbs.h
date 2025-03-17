@@ -1,6 +1,7 @@
 #ifndef QBS_H
 #define QBS_H
 
+#include <cassert>
 #include <cmath>
 #include <future>
 #include <stdexcept>
@@ -42,6 +43,7 @@ namespace qbs {
      */
     struct Std_t {
         std::string versionFlag;
+        std::string extension;
     };
 
     /**
@@ -49,14 +51,13 @@ namespace qbs {
      *
      */
     namespace Stds {
-        const Std_t CXX11 = { .versionFlag = "-std=c++11" };
-        const Std_t CXX14 = { .versionFlag = "-std=c++14" };
-        const Std_t CXX17 = { .versionFlag = "-std=c++17" };
-        const Std_t CXX20 = { .versionFlag = "-std=c++20" };
-        const Std_t CXX23 = { .versionFlag = "-std=c++23" };
+        const Std_t CXX11 = { .versionFlag = "-std=c++11", .extension = "cpp" };
+        const Std_t CXX14 = { .versionFlag = "-std=c++14", .extension = "cpp" };
+        const Std_t CXX17 = { .versionFlag = "-std=c++17", .extension = "cpp" };
+        const Std_t CXX20 = { .versionFlag = "-std=c++20", .extension = "cpp" };
+        const Std_t CXX23 = { .versionFlag = "-std=c++23", .extension = "cpp" };
     }
     enum BuildType { exe, lib };
-    enum FileType { cpp, c, h, hpp };
     enum FetchType { git, http };
 
 
@@ -315,48 +316,8 @@ namespace qbs {
             std::string projectName;
             std::string outputDir;
 
-            void prep_compile_cmd(Cmd *cmd, FileType fileType) {
-                cmd->append(this->compiler.cmdBase);
-
-                cmd->append(this->std.versionFlag);
-
-
-                for (const auto &include : includeDirs) {
-                    std::string includeArg;
-                    includeArg += "-I";
-                    includeArg += include;
-                    cmd->append(includeArg);
-                }
-
-                for (const auto &linkDir : linkDirs) {
-                    std::string linkDirArg;
-                    linkDirArg += "-L";
-                    linkDirArg += linkDir;
-                    cmd->append(linkDirArg);
-                }
-
-                for (const auto &linkFile : linkFiles) {
-                    std::string linkFileArg;
-                    linkFileArg += "-l";
-                    linkFileArg += linkFile;
-                    cmd->append(linkFileArg);
-                }
-
-                for (const auto &flag : flags) {
-                    cmd->append(flag);
-                }
+            void prep_compile_cmd(Cmd *cmd, std::string extension) {
             }
-
-            static FileType get_file_type_from_ext(std::string path) {
-                std::string ext = fs::path(path).extension();
-
-                if (ext == ".cpp") return FileType::cpp;
-                else if (ext == ".c") return FileType::c;
-                else if (ext == ".h") return FileType::h;
-                else if (ext == ".hpp") return FileType::hpp;
-                else throw std::invalid_argument(ext + " is an unknown extension");
-            }
-
 
             // To handle variadic recursion
             void append_flag() {}
@@ -571,57 +532,97 @@ namespace qbs {
              *
              * @return Status codes summed up from build commands
              */
-            int build() {
-                Cmd cmd;
-                int ret;
+            int build(bool parallel = true) {
+                /*Cmd cmd;*/
+                int ret = 0;
                 std::vector<std::string> oFiles;
-                FileType ft;
+                std::vector<std::future<int>> results;
+                std::vector<Cmd*> cmds;
+                
+                for (const auto &src : this->sourceFiles) {
+                    Cmd *cmd = new Cmd();
+                    std::vector<std::string> fileParts = Utils::split_string(src, '.');
+                    std::string ext = fileParts.back();
+                    std::string fileName = Utils::split_string(fileParts.front(), '/').back();
 
-                switch (this->buildType) {
-                    case BuildType::exe:
-                        ft = Build::get_file_type_from_ext(this->sourceFiles[0]);
-                        this->prep_compile_cmd(&cmd, ft);
-                        for (const auto &file : sourceFiles) {
-                            cmd.append(file);
-                        }   
-                        cmd.append("-o", outputDir + projectName);
-                        ret = cmd.run();
+                    cmd->append(this->compiler.cmdBase);
 
-                        return ret;
-                    case BuildType::lib:
-                        ret = 0;
+                    for (const auto &include : includeDirs) {
+                        std::string includeArg;
+                        includeArg += "-I";
+                        includeArg += include;
+                        cmd->append(includeArg);
+                    }
 
-                        for (const auto &file : sourceFiles) {
-                            ft = Build::get_file_type_from_ext(file);
-                            cmd.set_length(0);
-                            this->prep_compile_cmd(&cmd, ft);
+                    for (const auto &linkDir : linkDirs) {
+                        std::string linkDirArg;
+                        linkDirArg += "-L";
+                        linkDirArg += linkDir;
+                        cmd->append(linkDirArg);
+                    }
 
-                            std::string fileName = fs::path(file).stem();
-                            
-                            cmd.append("-c", file, "-o", outputDir + fileName + ".o");
-                            oFiles.push_back(outputDir + fileName + ".o");
+                    for (const auto &linkFile : linkFiles) {
+                        std::string linkFileArg;
+                        linkFileArg += "-l";
+                        linkFileArg += linkFile;
+                        cmd->append(linkFileArg);
+                    }
 
-                            ret += cmd.run();
-                        }
+                    for (const auto &flag : flags) {
+                        cmd->append(flag);
+                    }
 
-                        cmd.set_length(0);
+                    if (this->std.extension == ext) {
+                        cmd->append(this->std.versionFlag);
+                    }
 
-                        cmd.append("ar", "rcs", outputDir + "lib" + projectName + ".a");
+                    cmd->append("-c", "-o", this->outputDir + fileName + ".o", src);
 
-                        for (const auto &oFile : oFiles) {
-                            cmd.append(oFile);
-                        }
+                    oFiles.push_back(this->outputDir + fileName + ".o");
 
-                        ret += cmd.run();
-
-                        return ret;
-                    default:
-                        throw std::invalid_argument("Unknown build type");
+                    if (parallel) {
+                        results.push_back(cmd->run_async());
+                        cmds.push_back(cmd);
+                    } else {
+                        ret += cmd->run();
+                        delete cmd;
+                    }
                 }
 
+                if (parallel) {
+                    assert(results.size() == cmds.size() && "Results and Cmds differ in size");
+                
+                    for (int i = 0; i < results.size(); ++i) {
+                        ret += results[i].get();
+                        delete cmds[i];
+                    }
+                }
 
+                Cmd cmd;
+                
+                if (this->buildType == BuildType::exe) {
+                    cmd.append(this->compiler.cmdBase);
+                    
+                    for (const auto &o : oFiles) {
+                        cmd.append(o);
+                    }
 
+                    cmd.append("-o", this->outputDir + this->projectName);
 
+                    ret += cmd.run();
+                } else if (buildType == BuildType::lib) {
+                    cmd.append("ar", "rvs", this->projectName + ".a");
+
+                    for (const auto &o : oFiles) {
+                        cmd.append(o);
+                    }
+
+                    ret += cmd.run();
+                } else {
+                    throw std::runtime_error("UNREACHABLE: How did you get here?");
+                }
+
+                return ret;
             }
 
 
