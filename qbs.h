@@ -7,6 +7,7 @@
 #include <future>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include <cstdlib>
 #include <filesystem>
@@ -215,9 +216,9 @@ namespace qbs {
              *
              * @todo Make operation less expensive
              *
-             * @return Output of cmd ran
+             * @return The return code and output of cmd ran
              */
-            std::vector<std::string> run_capture_output() {
+            std::pair<int, std::vector<std::string>> run_capture_output() {
                 auto tempPath = fs::temp_directory_path().string();
                 if (tempPath.back() != '/') tempPath += '/';
                 const std::string TEMP_FILE_NAME = tempPath + "cmd.txt";
@@ -231,14 +232,14 @@ namespace qbs {
                 int ret = this->run();
 
                 if (ret != 0) {
-                    return std::vector<std::string>();
+                    return {ret, std::vector<std::string>()};
                 }
 
                 std::vector<std::string> lines = Utils::file_read_all(TEMP_FILE_NAME);
 
                 std::system(("rm -rf " + TEMP_FILE_NAME).c_str());
 
-                return lines;
+                return {ret, lines};
             }
     };
 
