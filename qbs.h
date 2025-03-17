@@ -313,6 +313,7 @@ namespace qbs {
             Compiler_t compiler;
             Std_t std;
             BuildType buildType;
+            bool parallel;
             std::string projectName;
             std::string outputDir;
 
@@ -328,20 +329,34 @@ namespace qbs {
 
         public:
 
-            Build(std::string projectName,
-                  std::string outputDir = "./",
-                  BuildType buildType = BuildType::exe,
-                  Std_t version = Stds::CXX20,
-                  Compiler_t compiler = Compilers::GPP) {
+            /**
+             * @brief Build constructor defaults:
+             *        std = Stds::CXX20
+             *        compiler = Compilers::GPP
+             *        buildType = BuildType::exe
+             *        outputDir = "./output/"
+             *        parallel = true
+             *
+             * @param projectName The name of the project. Used as final executable name
+             */
+            Build(std::string projectName) {
                 this->projectName = projectName;
-                this->std = version;
-                this->compiler = compiler;
-                this->buildType = buildType;
+                this->std = Stds::CXX20;
+                this->compiler = Compilers::GPP;
+                this->buildType = BuildType::exe;
+                this->outputDir = "./output/";
+                this->parallel = true;
 
-                if (outputDir[outputDir.length() - 1] != '/') {
-                    outputDir += '/';
-                }
-                this->outputDir = outputDir;
+                Utils::make_dir_if_not_exists(outputDir);
+            }
+
+            /**
+             * @brief Set whether to build parallel or not
+             *
+             * @param parallel The parallel value
+             */
+            void set_parallel(bool parallel) {
+                this->parallel = parallel;
             }
 
             /**
@@ -510,6 +525,11 @@ namespace qbs {
 
             /**
              * @brief Clears the build completely to defaults
+             *        compiler = Compilers::GPP
+             *        std = Stds::CXX20
+             *        buildType = BuildType::exe
+             *        outputDir = "./output/"
+             *        parallel = true
              *
              * @param projectName the new name for the project
              */
@@ -523,7 +543,8 @@ namespace qbs {
                 this->std = Stds::CXX20;
                 this->buildType = BuildType::exe;
                 this->projectName = projectName;
-                this->outputDir = "./";
+                this->outputDir = "./output/";
+                this->parallel = true;
             }
 
 
@@ -532,8 +553,7 @@ namespace qbs {
              *
              * @return Status codes summed up from build commands
              */
-            int build(bool parallel = true) {
-                /*Cmd cmd;*/
+            int build() {
                 int ret = 0;
                 std::vector<std::string> oFiles;
                 std::vector<std::future<int>> results;
@@ -580,7 +600,7 @@ namespace qbs {
 
                     oFiles.push_back(this->outputDir + fileName + ".o");
 
-                    if (parallel) {
+                    if (this->parallel) {
                         results.push_back(cmd->run_async());
                         cmds.push_back(cmd);
                     } else {
@@ -589,7 +609,7 @@ namespace qbs {
                     }
                 }
 
-                if (parallel) {
+                if (this->parallel) {
                     assert(results.size() == cmds.size() && "Results and Cmds differ in size");
                 
                     for (int i = 0; i < results.size(); ++i) {
@@ -659,7 +679,7 @@ namespace qbs {
                     return buildCode;
                 }
                     
-                std::string exe = "./" + projectName;
+                std::string exe = this->outputDir + projectName;
 
                 for (const auto &arg : this->runArgs) {
                     exe += " ";

@@ -12,7 +12,7 @@ int main() {
 
     int ret = build.build_and_run("Quoopie");
 
-    qbs::Cmd cmd("rm", "-rf", "main");
+    qbs::Cmd cmd("rm", "-rf", "output");
 
     return ret + cmd.run();
 }

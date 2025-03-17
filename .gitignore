@@ -33,4 +33,5 @@
 
 # Example binaries
 **/build
+**/output
 **/main
