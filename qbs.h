@@ -365,28 +365,6 @@ namespace qbs {
             void append_source_file() {}
             void append_link_file() {}
 
-            int build_and_run() {
-                if (this->buildType == BuildType::lib) {
-                    throw std::logic_error("Cannot run a library");
-                }
-
-                int buildCode = this->build();
-            
-                if (buildCode != 0) {
-                    return buildCode;
-                }
-                    
-                std::string exe = "./" + projectName;
-
-                for (const auto &arg : this->runArgs) {
-                    exe += " ";
-                    exe += arg;
-                }
-
-                Cmd cmd(exe);
-
-                return cmd.run();
-            }
         public:
 
             Build(std::string projectName,
@@ -660,6 +638,36 @@ namespace qbs {
             int build_and_run(std::string arg, Args... args) {
                 this->runArgs.push_back(arg);
                 return build_and_run(args...);
+            }
+
+            
+            /**
+             * @brief Build the project then run the final executable WITHOUT any cli arguments
+             *        DOES NOT WORK IF BuildType IS LIBRARY
+             *
+             * @return Status code from build or final executable if built properly
+             */
+            int build_and_run() {
+                if (this->buildType == BuildType::lib) {
+                    throw std::logic_error("Cannot run a library");
+                }
+
+                int buildCode = this->build();
+            
+                if (buildCode != 0) {
+                    return buildCode;
+                }
+                    
+                std::string exe = "./" + projectName;
+
+                for (const auto &arg : this->runArgs) {
+                    exe += " ";
+                    exe += arg;
+                }
+
+                Cmd cmd(exe);
+
+                return cmd.run();
             }
     };
 
