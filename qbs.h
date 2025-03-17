@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <fstream>
 #include <future>
 #include <stdexcept>
 #include <string>
@@ -14,8 +15,8 @@
 
 namespace fs = std::filesystem;
 
+// Forward declare Utils, types, and consts to be used throughout rest of file
 namespace qbs {
-
     /**
      * @class Compiler_t
      * @brief Type for defining custom compilers
@@ -57,10 +58,61 @@ namespace qbs {
         const Std_t CXX20 = { .versionFlag = "-std=c++20", .extension = "cpp" };
         const Std_t CXX23 = { .versionFlag = "-std=c++23", .extension = "cpp" };
     }
-    enum BuildType { exe, lib };
-    enum FetchType { git, http };
+    enum BuildType { EXE, LIB };
+    enum FetchType { GIT, HTTP };
 
+    namespace Utils {
+            /**
+             * @brief Splits the string based on the delimeter provided
+             *
+             * @param str The string to be split
+             * @param delim The character to split the string with
+             * @return A vector of strings containing each substring from the split
+             */
+            std::vector<std::string> split_string(std::string str, char delim = ' ');
 
+            /**
+             * @brief Fetches a file from a url
+             *        DEPENDS ON WGET OR CURL
+             *
+             * @param url The url to receive the file
+             * @param fetchType The target FetchType (http, git)
+             * @return Status code from attempting to fetch file
+             */
+            int fetch(std::string url, FetchType fetchType = FetchType::HTTP);
+
+            /**
+             * @brief Decompress the provided path
+             *        Currently supports .zip, .tar, .gz, and .rar
+             *        Relies upon the following shell commands:
+             *          tar
+             *          gzip
+             *          unrar
+             *          unzip
+             * @param path The file to be decompressed
+             * @return  The sum of ran command's exit codes
+             */
+            int decompress(std::string path);
+
+            /**
+             * @brief Makes a directory at the provided path if that directory does not exist
+             *
+             * @param path Path to the directory to be made
+             * @return Return code of `mkdir` Command
+             */
+            int make_dir_if_not_exists(std::string path);
+
+            /**
+             * @brief Read all lines of the provided file
+             *
+             * @param path Path to the file to read
+             * @return All lines of the provided file
+             */
+            std::vector<std::string> file_read_all(std::string path);
+    }
+}
+
+namespace qbs {
     /**
      * @class Cmd
      * @brief A class that runs shell commands
@@ -161,14 +213,7 @@ namespace qbs {
     };
 
     namespace Utils {
-            /**
-             * @brief Splits the string based on the delimeter provided
-             *
-             * @param str The string to be split
-             * @param delim The character to split the string with
-             * @return A vector of strings containing each substring from the split
-             */
-            std::vector<std::string> split_string(std::string str, char delim = ' ') {
+            std::vector<std::string> split_string(std::string str, char delim) {
                 std::vector<std::string> tokens;
                 std::stringstream inputStream(str);
                 std::string curr_token;
@@ -181,20 +226,12 @@ namespace qbs {
                 return tokens;
             }
 
-            /**
-             * @brief Fetches a file from a url
-             *        DEPENDS ON WGET OR CURL
-             *
-             * @param url The url to receive the file
-             * @param fetchType The target FetchType (http, git)
-             * @return Status code from attempting to fetch file
-             */
-            int fetch(std::string url, FetchType fetchType = FetchType::http) {
+            int fetch(std::string url, FetchType fetchType) {
                 Cmd cmd;
                 std::string mode;
 
                 switch (fetchType) {
-                    case http:
+                    case HTTP:
                             if (std::system("wget > /dev/null 2>&1") == 127) {
                                 cmd.append("curl");
                                 mode = "curl";
@@ -212,7 +249,7 @@ namespace qbs {
                             }
 
                         break;
-                    case git:
+                    case GIT:
                         cmd.append("git", "clone", url);
                         
                         break;
@@ -225,17 +262,6 @@ namespace qbs {
                 return cmd.run();
             }
 
-            /**
-             * @brief Decompress the provided path
-             *        Currently supports .zip, .tar, .gz, and .rar
-             *        Relies upon the following shell commands:
-             *          tar
-             *          gzip
-             *          unrar
-             *          unzip
-             * @param path The file to be decompressed
-             * @return  The sum of ran command's exit codes
-             */
             int decompress(std::string path) {
                 auto file = fs::path(path);
 
@@ -278,12 +304,6 @@ namespace qbs {
                 return ret;
             }
 
-            /**
-             * @brief Makes a directory at the provided path if that directory does not exist
-             *
-             * @param path Path to the directory to be made
-             * @return Return code of `mkdir` Command
-             */
             int make_dir_if_not_exists(std::string path) {
                 auto dir = fs::directory_entry(path);
 
@@ -294,6 +314,16 @@ namespace qbs {
                 cmd.append("mkdir", "-p", path);
 
                 return cmd.run();
+            }
+
+            std::vector<std::string> file_read_all(std::string path) {
+                std::vector<std::string> lines;
+                std::string buf;
+                std::ifstream file(path);
+                
+                while (std::getline(file, buf)) lines.push_back(buf);
+
+                return lines;
             }
     };
 
@@ -343,7 +373,7 @@ namespace qbs {
                 this->projectName = projectName;
                 this->std = Stds::CXX20;
                 this->compiler = Compilers::GPP;
-                this->buildType = BuildType::exe;
+                this->buildType = BuildType::EXE;
                 this->outputDir = "./output/";
                 this->parallel = true;
 
@@ -541,7 +571,7 @@ namespace qbs {
                 this->flags.clear();
                 this->compiler = Compilers::GPP;
                 this->std = Stds::CXX20;
-                this->buildType = BuildType::exe;
+                this->buildType = BuildType::EXE;
                 this->projectName = projectName;
                 this->outputDir = "./output/";
                 this->parallel = true;
@@ -620,7 +650,7 @@ namespace qbs {
 
                 Cmd cmd;
                 
-                if (this->buildType == BuildType::exe) {
+                if (this->buildType == BuildType::EXE) {
                     cmd.append(this->compiler.cmdBase);
                     
                     for (const auto &o : oFiles) {
@@ -630,7 +660,7 @@ namespace qbs {
                     cmd.append("-o", this->outputDir + this->projectName);
 
                     ret += cmd.run();
-                } else if (buildType == BuildType::lib) {
+                } else if (buildType == BuildType::LIB) {
                     cmd.append("ar", "rvs", this->projectName + ".a");
 
                     for (const auto &o : oFiles) {
@@ -669,7 +699,7 @@ namespace qbs {
              * @return Status code from build or final executable if built properly
              */
             int build_and_run() {
-                if (this->buildType == BuildType::lib) {
+                if (this->buildType == BuildType::LIB) {
                     throw std::logic_error("Cannot run a library");
                 }
 
