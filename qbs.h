@@ -541,9 +541,9 @@ namespace qbs {
                 
                 for (const auto &src : this->sourceFiles) {
                     Cmd *cmd = new Cmd();
-                    std::vector<std::string> fileParts = Utils::split_string(src, '.');
-                    std::string ext = fileParts.back();
-                    std::string fileName = Utils::split_string(fileParts.front(), '/').back();
+                    auto srcPath = fs::path(src);
+                    std::string ext = srcPath.extension();
+                    std::string fileName = srcPath.stem();
 
                     cmd->append(this->compiler.cmdBase);
 
