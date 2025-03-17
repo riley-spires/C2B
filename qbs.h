@@ -193,9 +193,7 @@ namespace qbs {
              * @return status code from the cmd
              */
             int run() {
-                this->print();
-                
-                return std::system(this->string().c_str());
+                return this->run_async().get();
             }
 
             /**
@@ -209,6 +207,38 @@ namespace qbs {
                 return std::async([this]() {
                     return std::system(this->string().c_str());
                 });
+            }
+
+            /**
+             * @brief Runs the command synchronously, redirecting cout and cerr to a file
+             *        Then reads that file and returns lines.
+             *
+             * @todo Make operation less expensive
+             *
+             * @return Output of cmd ran
+             */
+            std::vector<std::string> run_capture_output() {
+                auto tempPath = fs::temp_directory_path().string();
+                if (tempPath.back() != '/') tempPath += '/';
+                const std::string TEMP_FILE_NAME = tempPath + "cmd.txt";
+
+                #ifndef _WIN32
+                    this->append("&>", TEMP_FILE_NAME);
+                #else
+                    this->append("*>", TEMP_FILE_NAME);
+                #endif
+
+                int ret = this->run();
+
+                if (ret != 0) {
+                    return std::vector<std::string>();
+                }
+
+                std::vector<std::string> lines = Utils::file_read_all(TEMP_FILE_NAME);
+
+                std::system(("rm -rf " + TEMP_FILE_NAME).c_str());
+
+                return lines;
             }
     };
 
