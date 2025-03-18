@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <iostream>
 #include <sstream>
+#include <format>
 
 namespace fs = std::filesystem;
 
@@ -473,6 +474,27 @@ namespace qbs {
                 this->append_flag("Wall", "Wextra");
             }
 
+            void enable_rebuild_self(const std::string FILE_NAME) {
+                const fs::path self = fs::path(FILE_NAME);
+                auto selfCopy = self;
+                selfCopy.replace_filename(self.stem());
+
+                const fs::path exe = fs::path(selfCopy);
+
+                const auto selfWriteTime = fs::last_write_time(self).time_since_epoch().count();
+                const auto exeWriteTime = fs::last_write_time(exe).time_since_epoch().count();
+
+                if (selfWriteTime > exeWriteTime) {
+                    Cmd cmd;
+                    cmd.append("g++", FILE_NAME, "-o", self.stem().string());
+                    cmd.run();
+
+                    cmd.set_length(0);
+                    cmd.append("./" + self.stem().string());
+                    cmd.run();
+                    std::exit(0);
+                }
+            }
 
             /**
              * @brief Append many source files to build
