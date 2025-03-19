@@ -1,10 +1,10 @@
 #include "../../qbs.h"
 
 
-
-int main() {
+int main(int argc, char **argv) {
     qbs::Build build("main");
 
+    build.enable_rebuild_self(argc, argv, __FILE__);
     build.set_std(qbs::Stds::CXX23);
     build.enable_warnings();
     build.append_include_dir("include");

@@ -474,12 +474,20 @@ namespace qbs {
                 this->append_flag("Wall", "Wextra");
             }
 
-            void enable_rebuild_self(const std::string FILE_NAME) {
-                const fs::path self = fs::path(FILE_NAME);
-                auto selfCopy = self;
-                selfCopy.replace_filename(self.stem());
+            /**
+             * @brief Rebuilds the build source file and runs the new executable
+             *        if any changes have been detected to the source file
+             *
+             * @param argc From main function
+             * @param argv From main function
+             * @param FILE_NAME The file name of the source file
+             *        Recommended to pass __FILE__ as the value
+             */
+            void enable_rebuild_self(const int argc, char **argv, const std::string FILE_NAME) {
+                assert (argc >= 1 && "Malformed cli arguments");
 
-                const fs::path exe = fs::path(selfCopy);
+                const fs::path self = fs::path(FILE_NAME);
+                const fs::path exe = fs::path(argv[0]);
 
                 const auto selfWriteTime = fs::last_write_time(self).time_since_epoch().count();
                 const auto exeWriteTime = fs::last_write_time(exe).time_since_epoch().count();
