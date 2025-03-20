@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <future>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -375,7 +376,7 @@ namespace qbs {
             Compiler_t compiler;
             Std_t std;
             BuildType buildType;
-            bool parallel;
+            bool parallel, exportCompile;
             std::string projectName;
             std::string outputDir;
 
@@ -502,6 +503,10 @@ namespace qbs {
                     cmd.run();
                     std::exit(0);
                 }
+            }
+
+            void enable_export_compile_commands() {
+                this->exportCompile = true;
             }
 
             /**
@@ -649,12 +654,22 @@ namespace qbs {
                 std::vector<std::string> oFiles;
                 std::vector<std::future<int>> results;
                 std::vector<Cmd*> cmds;
+                std::ofstream exportFile;
+                const std::string ROOT_DIR = fs::current_path();
+
+                if (this->exportCompile) {
+                    exportFile.open("compile_commands.json");
+
+                    exportFile << "[\n";
+                }
+                
                 
                 for (const auto &src : this->sourceFiles) {
                     Cmd *cmd = new Cmd();
                     auto srcPath = fs::path(src);
                     std::string ext = srcPath.extension();
                     std::string fileName = srcPath.stem();
+                    const std::string OUTPUT_FILE = this->outputDir + fileName + ".o";
 
                     cmd->append(this->compiler.cmdBase);
 
@@ -687,9 +702,18 @@ namespace qbs {
                         cmd->append(this->std.versionFlag);
                     }
 
-                    cmd->append("-c", "-o", this->outputDir + fileName + ".o", src);
+                    cmd->append("-c", "-o", OUTPUT_FILE, src);
 
-                    oFiles.push_back(this->outputDir + fileName + ".o");
+                    oFiles.push_back(OUTPUT_FILE);
+
+                    if (this->exportCompile) {
+                        exportFile << "\t{\n"
+                                   << "\t\t\"directory\": \"" << ROOT_DIR << "\",\n"
+                                   << "\t\t\"command\": \"" << cmd->string() << "\",\n"
+                                   << "\t\t\"file\": \"" << src << "\",\n"
+                                   << "\t\t\"output\": \"" << OUTPUT_FILE << "\",\n"
+                                   << "\t},\n";
+                    }
 
                     if (this->parallel) {
                         results.push_back(cmd->run_async());
@@ -698,6 +722,11 @@ namespace qbs {
                         ret += cmd->run();
                         delete cmd;
                     }
+                }
+
+                if (this->exportCompile) {
+                    exportFile << "]";
+                    exportFile.close();
                 }
 
                 if (this->parallel) {

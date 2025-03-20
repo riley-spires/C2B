@@ -35,3 +35,8 @@
 **/build
 **/output
 **/main
+
+# Clangd
+**/compile_commands.json
+**.cache
+

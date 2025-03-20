@@ -5,8 +5,11 @@ int main(int argc, char **argv) {
     qbs::Build build("main");
 
     build.enable_rebuild_self(argc, argv, __FILE__);
+    build.enable_export_compile_commands();
+
     build.set_std(qbs::Stds::CXX23);
     build.enable_warnings();
+
     build.append_include_dir("include");
     build.append_source_dir("src");
 
