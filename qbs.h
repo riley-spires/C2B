@@ -114,6 +114,21 @@ namespace qbs {
              * @return All lines of the provided file
              */
             std::vector<std::string> file_read_all(std::string path);
+
+            
+            /**
+             * @brief Gets the type of operating system
+             *
+             * @return The type of operating system
+             */
+            OS get_os();
+
+            /**
+             * @brief Gets the type of architecture of the system
+             *
+             * @return The type of architecture of the system
+             */
+            Arch get_arch();
     }
 }
 
