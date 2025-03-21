@@ -63,6 +63,8 @@ namespace qbs {
     }
     enum BuildType { EXE, LIB };
     enum FetchType { GIT, HTTP };
+    enum OS { WIN, MAC, LINUX, UNKNOWN };
+    enum Arch { X86, X64, ARM64, ARM32, UKNOWN };
 
     namespace Utils {
             /**
@@ -359,8 +361,30 @@ namespace qbs {
                 return lines;
             }
 
-            std::string get_os() {
-    
+            OS get_os() {
+                #if defined(_WIN32) || defined(_WIN64)
+                    return OS::WIN;
+                #elif defined(__linux__)
+                    return OS::LINUX;
+                #elif defined(__APPLE__) || defined(__MACH__)
+                    return OS::MAC;
+                #else
+                    return OS::UNKNOWN;
+                #endif
+            }
+
+            Arch get_arch() {
+                #if defined(_M_X64) || defined(__x86_64__)
+                    return Arch::X64;
+                #elif defined(_M_IX86) || defined(__i386__)
+                    return Arch::X86;
+                #elif defined(_M_ARM64) || defined(__aarch64__)
+                    return Arch::ARM64;
+                #elif defined(_M_ARM) || defined(__arm__)
+                    return Arch::ARM32;
+                #else
+                    return Arch::UNKNOWN;
+                #endif
             }
     };
 
