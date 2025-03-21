@@ -316,11 +316,11 @@ namespace qbs {
                     if (ext == ".gz") {
                         std::cout << file << std::endl;
                         cmd.append("gzip", "-d", file);
-                    } else if (".tar") {
+                    } else if (ext == ".tar") {
                         cmd.append("tar", "-xf", file);
-                    } else if (".zip") {
+                    } else if (ext == ".zip") {
                         cmd.append("unzip", file);
-                    } else if (".rar") {
+                    } else if (ext == ".rar") {
                         cmd.append("unrar", "x", file);
                     } else {
                         throw std::logic_error("UNREACHABLE: How did you get here?");
@@ -523,7 +523,7 @@ namespace qbs {
 
                 std::string fileExt = fs::path(path).extension();
 
-                if (fileExt != ".cpp" && fileExt != ".c")
+                if (fileExt != ".cpp" && fileExt != ".c" && fileExt != ".cc")
                     return;
                 
                 this->sourceFiles.push_back(path);
@@ -745,6 +745,14 @@ namespace qbs {
                     
                     for (const auto &o : oFiles) {
                         cmd.append(o);
+                    }
+
+                    for (const auto &L : this->linkDirs) {
+                        cmd.append("-L", L);
+                    }
+
+                    for (const auto &l : this->linkFiles) {
+                        cmd.append("-l", l);
                     }
 
                     cmd.append("-o", this->outputDir + this->projectName);
