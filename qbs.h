@@ -759,7 +759,7 @@ namespace qbs {
 
                     ret += cmd.run();
                 } else if (buildType == BuildType::LIB) {
-                    cmd.append("ar", "rvs", this->projectName + ".a");
+                    cmd.append("ar", "rvs", this->outputDir + "lib" + this->projectName + ".a");
 
                     for (const auto &o : oFiles) {
                         cmd.append(o);
