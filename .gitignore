@@ -36,6 +36,11 @@
 **/output
 **/main
 
+# Raylib Demo
+examples/raylib-demo/*5.5*
+examples/raylib-demo/lib
+
+
 # Clangd
 **/compile_commands.json
 **.cache

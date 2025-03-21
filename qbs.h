@@ -453,7 +453,6 @@ namespace qbs {
                 this->outputDir = "./output/";
                 this->parallel = true;
 
-                Utils::make_dir_if_not_exists(outputDir);
             }
 
             /**
@@ -693,6 +692,8 @@ namespace qbs {
              * @return Status codes summed up from build commands
              */
             int build() {
+                Utils::make_dir_if_not_exists(outputDir);
+
                 int ret = 0;
                 std::vector<std::string> oFiles;
                 std::vector<std::future<int>> results;
