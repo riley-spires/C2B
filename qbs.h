@@ -358,6 +358,10 @@ namespace qbs {
 
                 return lines;
             }
+
+            std::string get_os() {
+    
+            }
     };
 
     /**
