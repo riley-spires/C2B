@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
 
     int ret = build.build_and_run("Quoopie");
 
-    qbs::Cmd cmd("rm", "-rf", "output");
+    qbs::Cmd cmd("rm", "-rf", "build");
 
     return ret + cmd.run();
 }

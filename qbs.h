@@ -440,7 +440,7 @@ namespace qbs {
              *        std = Stds::CXX20
              *        compiler = Compilers::GPP
              *        buildType = BuildType::exe
-             *        outputDir = "./output/"
+             *        outputDir = "./build/"
              *        parallel = true
              *
              * @param projectName The name of the project. Used as final executable name
@@ -450,7 +450,7 @@ namespace qbs {
                 this->std = Stds::CXX20;
                 this->compiler = Compilers::GPP;
                 this->buildType = BuildType::EXE;
-                this->outputDir = "./output/";
+                this->outputDir = "./build/";
                 this->parallel = true;
 
             }
@@ -666,7 +666,7 @@ namespace qbs {
              *        compiler = Compilers::GPP
              *        std = Stds::CXX20
              *        buildType = BuildType::exe
-             *        outputDir = "./output/"
+             *        outputDir = "./build/"
              *        parallel = true
              *
              * @param projectName the new name for the project
@@ -681,7 +681,7 @@ namespace qbs {
                 this->std = Stds::CXX20;
                 this->buildType = BuildType::EXE;
                 this->projectName = projectName;
-                this->outputDir = "./output/";
+                this->outputDir = "./build/";
                 this->parallel = true;
             }
 
@@ -692,7 +692,7 @@ namespace qbs {
              * @return Status codes summed up from build commands
              */
             int build() {
-                Utils::make_dir_if_not_exists(outputDir);
+                Utils::make_dir_if_not_exists(outputDir + "oFiles/");
 
                 int ret = 0;
                 std::vector<std::string> oFiles;
@@ -702,7 +702,7 @@ namespace qbs {
                 const std::string ROOT_DIR = fs::current_path();
 
                 if (this->exportCompile) {
-                    exportFile.open("compile_commands.json");
+                    exportFile.open(outputDir + "compile_commands.json");
 
                     exportFile << "[\n";
                 }
@@ -713,7 +713,7 @@ namespace qbs {
                     auto srcPath = fs::path(src);
                     std::string ext = srcPath.extension();
                     std::string fileName = srcPath.stem();
-                    const std::string OUTPUT_FILE = this->outputDir + fileName + ".o";
+                    const std::string OUTPUT_FILE = this->outputDir + "oFiles/" + fileName + ".o";
 
                     cmd->append(this->compiler.cmdBase);
 
