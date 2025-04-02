@@ -3,11 +3,12 @@
 
 
 int main(int argc, char **argv) {
+    // Enable rebuild self
+    qbs::Build::rebuild_self(argc, argv, __FILE__);
+
     // First we are going to build GLFW
     qbs::Build build("GLFW");
     
-    // Enable rebuild self
-    build.enable_rebuild_self(argc, argv, __FILE__);
 
     // Prepare raylib source code
     qbs::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz");

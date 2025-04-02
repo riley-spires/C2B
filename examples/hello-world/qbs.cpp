@@ -2,9 +2,10 @@
 
 
 int main(int argc, char **argv) {
+    qbs::Build::rebuild_self(argc, argv, __FILE__);
+
     qbs::Build build("main");
 
-    build.enable_rebuild_self(argc, argv, __FILE__);
     build.enable_export_compile_commands();
 
     build.set_std(qbs::Stds::CXX23);

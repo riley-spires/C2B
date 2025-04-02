@@ -129,6 +129,17 @@ namespace qbs {
              * @return The type of architecture of the system
              */
             Arch get_arch();
+            
+            /**
+             * @brief Gives which file is older
+             *
+             * @param path1 path to the first file
+             * @param path2 path to the second file
+             * @return 1 if path1 is older than path2
+             *         -1 if path2 is older than path1
+             *         0 if path1 and path2 have same modify datetime
+             */
+            int file_older(std::string path1, std::string path2);
     }
 }
 
@@ -401,6 +412,22 @@ namespace qbs {
                     return Arch::UNKNOWN;
                 #endif
             }
+
+            int file_older(std::string path1, std::string path2) {
+                const fs::path path1Path = fs::path(path1);
+                const fs::path path2Path = fs::path(path2);
+
+                const auto path1WriteTime = fs::last_write_time(path1Path).time_since_epoch().count();
+                const auto path2WriteTime = fs::last_write_time(path2Path).time_since_epoch().count();
+
+                if (path1WriteTime > path2WriteTime) {
+                    return -1;
+                } else if (path2WriteTime > path1WriteTime) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
     };
 
     /**
@@ -526,24 +553,17 @@ namespace qbs {
              * @param FILE_NAME The file name of the source file
              *        Recommended to pass __FILE__ as the value
              */
-            void enable_rebuild_self(const int argc, char **argv, const std::string FILE_NAME) {
+            static void rebuild_self(const int argc, char **argv, const std::string FILE_NAME) {
                 assert (argc >= 1 && "Malformed cli arguments");
 
-                const fs::path self = fs::path(FILE_NAME);
-                const fs::path exe = fs::path(argv[0]);
-
-                const auto selfWriteTime = fs::last_write_time(self).time_since_epoch().count();
-                const auto exeWriteTime = fs::last_write_time(exe).time_since_epoch().count();
-
-                if (selfWriteTime > exeWriteTime) {
+                if (Utils::file_older(FILE_NAME, argv[0]) == -1) {
                     Cmd cmd;
-                    cmd.append("g++", FILE_NAME, "-o", self.stem().string());
+                    cmd.append("g++", FILE_NAME, "-o", argv[0]);
                     cmd.run();
 
                     cmd.set_length(0);
-                    cmd.append("./" + self.stem().string());
-                    cmd.run();
-                    std::exit(0);
+                    cmd.append("./" + std::string(argv[0]));
+                    std::exit(cmd.run());
                 }
             }
 
