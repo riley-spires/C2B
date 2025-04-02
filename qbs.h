@@ -138,6 +138,8 @@ namespace qbs {
              * @return 1 if path1 is older than path2
              *         -1 if path2 is older than path1
              *         0 if path1 and path2 have same modify datetime
+             *         -2 if one of the paths do not exist
+             *
              */
             int file_older(std::string path1, std::string path2);
     }
@@ -417,6 +419,11 @@ namespace qbs {
                 const fs::path path1Path = fs::path(path1);
                 const fs::path path2Path = fs::path(path2);
 
+                if (!fs::directory_entry(path1Path).exists() ||
+                    !fs::directory_entry(path2Path).exists()) {
+                    return -2;
+                }
+
                 const auto path1WriteTime = fs::last_write_time(path1Path).time_since_epoch().count();
                 const auto path2WriteTime = fs::last_write_time(path2Path).time_since_epoch().count();
 
@@ -446,12 +453,9 @@ namespace qbs {
             Compiler_t compiler;
             Std_t std;
             BuildType buildType;
-            bool parallel, exportCompile;
+            bool parallel, exportCompile, incremental;
             std::string projectName;
             std::string outputDir;
-
-            void prep_compile_cmd(Cmd *cmd, std::string extension) {
-            }
 
             // To handle variadic recursion
             void append_flag() {}
@@ -469,6 +473,8 @@ namespace qbs {
              *        buildType = BuildType::exe
              *        outputDir = "./build/"
              *        parallel = true
+             *        incremental = true
+             *        exportCompile = true
              *
              * @param projectName The name of the project. Used as final executable name
              */
@@ -479,7 +485,8 @@ namespace qbs {
                 this->buildType = BuildType::EXE;
                 this->outputDir = "./build/";
                 this->parallel = true;
-
+                this->incremental = true;
+                this->exportCompile = true;
             }
 
             /**
@@ -489,6 +496,15 @@ namespace qbs {
              */
             void set_parallel(bool parallel) {
                 this->parallel = parallel;
+            }
+
+            /**
+             * @brief Set whether to incrementally build project or not
+             *
+             * @param incremental the incremental value
+             */
+            void set_incremental(bool incremental) {
+                this->incremental = incremental;
             }
 
             /**
@@ -538,6 +554,15 @@ namespace qbs {
             }
 
             /**
+             * @brief Set whether to export compile commands or not
+             *
+             * @param exportCompile the export value
+             */
+            void set_export_compile_commands(bool exportCompile) {
+                this->exportCompile = exportCompile;
+            }
+
+            /**
              * @brief Append "Wall" and "Wextra" flags
              */
             void enable_warnings() {
@@ -567,9 +592,6 @@ namespace qbs {
                 }
             }
 
-            void enable_export_compile_commands() {
-                this->exportCompile = true;
-            }
 
             /**
              * @brief Append many source files to build
@@ -688,6 +710,8 @@ namespace qbs {
              *        buildType = BuildType::exe
              *        outputDir = "./build/"
              *        parallel = true
+             *        incremental = true
+             *        exportCompile = true
              *
              * @param projectName the new name for the project
              */
@@ -703,6 +727,8 @@ namespace qbs {
                 this->projectName = projectName;
                 this->outputDir = "./build/";
                 this->parallel = true;
+                this->incremental = true;
+                this->exportCompile = true;
             }
 
 
@@ -720,6 +746,7 @@ namespace qbs {
                 std::vector<Cmd*> cmds;
                 std::ofstream exportFile;
                 const std::string ROOT_DIR = fs::current_path();
+                bool buildFinalProduct = false;
 
                 if (this->exportCompile) {
                     exportFile.open(outputDir + "compile_commands.json");
@@ -734,6 +761,7 @@ namespace qbs {
                     std::string ext = srcPath.extension();
                     std::string fileName = srcPath.stem();
                     const std::string OUTPUT_FILE = this->outputDir + "oFiles/" + fileName + ".o";
+
 
                     cmd->append(this->compiler.cmdBase);
 
@@ -779,11 +807,17 @@ namespace qbs {
                                    << "\t},\n";
                     }
 
-                    if (this->parallel) {
-                        results.push_back(cmd->run_async());
-                        cmds.push_back(cmd);
+                    if (this->incremental && Utils::file_older(src, OUTPUT_FILE) != 1) {
+                        if (this->parallel) {
+                            results.push_back(cmd->run_async());
+                            cmds.push_back(cmd);
+                        } else {
+                            ret += cmd->run();
+                            delete cmd;
+                        }
+
+                        buildFinalProduct = true;
                     } else {
-                        ret += cmd->run();
                         delete cmd;
                     }
                 }
@@ -802,37 +836,42 @@ namespace qbs {
                     }
                 }
 
-                Cmd cmd;
-                
-                if (this->buildType == BuildType::EXE) {
-                    cmd.append(this->compiler.cmdBase);
+                if (buildFinalProduct) {
+                    Cmd cmd;
                     
-                    for (const auto &o : oFiles) {
-                        cmd.append(o);
+                    if (this->buildType == BuildType::EXE) {
+                        cmd.append(this->compiler.cmdBase);
+                        
+                        for (const auto &o : oFiles) {
+                            cmd.append(o);
+                        }
+
+                        for (const auto &L : this->linkDirs) {
+                            cmd.append("-L", L);
+                        }
+
+                        for (const auto &l : this->linkFiles) {
+                            cmd.append("-l", l);
+                        }
+
+                        cmd.append("-o", this->outputDir + this->projectName);
+
+                        ret += cmd.run();
+                    } else if (buildType == BuildType::LIB) {
+                        cmd.append("ar", "rvs", this->outputDir + "lib" + this->projectName + ".a");
+
+                        for (const auto &o : oFiles) {
+                            cmd.append(o);
+                        }
+
+                        ret += cmd.run();
+                    } else {
+                        throw std::runtime_error("UNREACHABLE: How did you get here?");
                     }
-
-                    for (const auto &L : this->linkDirs) {
-                        cmd.append("-L", L);
-                    }
-
-                    for (const auto &l : this->linkFiles) {
-                        cmd.append("-l", l);
-                    }
-
-                    cmd.append("-o", this->outputDir + this->projectName);
-
-                    ret += cmd.run();
-                } else if (buildType == BuildType::LIB) {
-                    cmd.append("ar", "rvs", this->outputDir + "lib" + this->projectName + ".a");
-
-                    for (const auto &o : oFiles) {
-                        cmd.append(o);
-                    }
-
-                    ret += cmd.run();
                 } else {
-                    throw std::runtime_error("UNREACHABLE: How did you get here?");
+                    std::cout << "[INFO] Target " << projectName << " already up to date" << std::endl;
                 }
+
 
                 return ret;
             }

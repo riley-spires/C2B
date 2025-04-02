@@ -8,7 +8,6 @@ int main(int argc, char **argv) {
 
     // First we are going to build GLFW
     qbs::Build build("GLFW");
-    
 
     // Prepare raylib source code
     qbs::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz");
@@ -18,6 +17,7 @@ int main(int argc, char **argv) {
     build.set_output_dir("lib");
     build.set_build_type(qbs::BuildType::LIB);
     build.set_std({ .versionFlag="-std=c99", .extension = ".c" });
+    build.set_export_compile_commands(false);
 
     // Add build directories
     build.append_include_dir("raylib-5.5/src/external/glfw/include");
@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
     build.set_build_type(qbs::BuildType::LIB);
     build.set_compiler(qbs::Compilers::GCC);
     build.set_std({ .versionFlag = "-std=c99", .extension = ".c" });
+    build.set_export_compile_commands(false);
 
     // Add build directories
     build.append_source_dir("raylib-5.5/src", false);
@@ -54,9 +55,6 @@ int main(int argc, char **argv) {
 
     // Clear the build to build our final program
     build.clear("main");
-
-    // Enable making of compile_commands.json
-    build.enable_export_compile_commands();
 
     // Add build directories
     build.append_source_dir("src");
