@@ -1,6 +1,7 @@
 #ifndef QBS_H
 #define QBS_H
 
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -161,7 +162,12 @@ namespace qbs {
 
             void print() {
                 std::string cmd = this->string();
-
+                auto split = Utils::split_string(cmd);
+                cmd = "";
+                for (int i = 0; i < split.size() - 1; ++i) {
+                    cmd += split[i] + " ";
+                }   
+                
                 std::cout << "[INFO] " << cmd << std::endl;
             }
         public:
@@ -217,6 +223,8 @@ namespace qbs {
                     sb += " ";
                 }
 
+                sb += "2>&1";
+
                 return sb;
             }
             
@@ -238,40 +246,47 @@ namespace qbs {
                 this->print();
 
                 return std::async([this]() {
-                    return std::system(this->string().c_str());
+                    FILE *stream = popen(this->string().c_str(), "r");
+
+                    assert(stream != nullptr && "Out of ram");
+                    std::array<char, 128> buffer;
+                    
+                    while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {}
+                    
+
+                    return pclose(stream);
                 });
             }
 
             /**
-             * @brief Runs the command synchronously, redirecting cout and cerr to a file
-             *        Then reads that file and returns lines.
+             * @brief Runs the command synchronously, capturing stdout & stderr
              *
-             * @todo Make operation less expensive
              *
              * @return The return code and output of cmd ran
              */
             std::pair<int, std::vector<std::string>> run_capture_output() {
-                auto tempPath = fs::temp_directory_path().string();
-                if (tempPath.back() != '/') tempPath += '/';
-                const std::string TEMP_FILE_NAME = tempPath + "cmd.txt";
+                this->print();
 
-                #ifndef _WIN32
-                    this->append("&>", TEMP_FILE_NAME);
-                #else
-                    this->append("*>", TEMP_FILE_NAME);
-                #endif
+                FILE *stream = popen(this->string().c_str(), "r");
+                
+                assert(stream != nullptr && "Out of ram");
+                std::array<char, 128> buffer;
+                std::string stdout;
 
-                int ret = this->run();
-
-                if (ret != 0) {
-                    return {ret, std::vector<std::string>()};
+                while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {
+                    stdout += buffer.data();
                 }
 
-                std::vector<std::string> lines = Utils::file_read_all(TEMP_FILE_NAME);
+                return {pclose(stream), Utils::split_string(stdout, '\n')};
+            }
 
-                std::system(("rm -rf " + TEMP_FILE_NAME).c_str());
-
-                return {ret, lines};
+            /**
+             * @brief Runs the command asynchronouly, capturing stdout & stderr
+             *
+             * @return A ftuture with the return code and stdout/stderr of the cmd
+             */
+            std::future<std::pair<int, std::vector<std::string>>> run_async_capture_output() {
+                return std::async(&Cmd::run_capture_output, this);
             }
     };
 
@@ -290,12 +305,15 @@ namespace qbs {
             }
 
             int fetch(std::string url, FetchType fetchType) {
-                Cmd cmd;
+                Cmd cmd("wget > /dev/null 2>&1");
                 std::string mode;
+
+                int wgetCode = cmd.run();
+                cmd.set_length(0);
 
                 switch (fetchType) {
                     case HTTP:
-                            if (std::system("wget > /dev/null 2>&1") == 127) {
+                            if (wgetCode == 127) {
                                 cmd.append("curl");
                                 mode = "curl";
                             } else {
@@ -332,7 +350,6 @@ namespace qbs {
                     throw std::invalid_argument("Unable to compress file that doesn't have an extension");
                 }
 
-
                 std::string ext = file.extension();
         
                 if (ext != ".gz" && ext != ".tar" && ext != ".zip" && ext != ".rar") {
@@ -344,8 +361,7 @@ namespace qbs {
                 while (ext == ".gz" || ext == ".tar" || ext == ".zip" || ext == ".rar") {
                     std::string fileName = file.relative_path().string() + file.filename().string();
                     if (ext == ".gz") {
-                        std::cout << file << std::endl;
-                        cmd.append("gzip", "-d", file);
+                        cmd.append("gzip", "-df", file);
                     } else if (ext == ".tar") {
                         cmd.append("tar", "-xf", file);
                     } else if (ext == ".zip") {
@@ -919,7 +935,13 @@ namespace qbs {
 
                 Cmd cmd(exe);
 
-                return cmd.run();
+                auto result = cmd.run_capture_output();
+
+                for (const auto &line : result.second) {
+                    std::cout << line << std::endl;
+                }
+
+                return result.first;
             }
     };
 

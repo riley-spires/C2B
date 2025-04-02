@@ -6,8 +6,6 @@ int main(int argc, char **argv) {
 
     qbs::Build build("main");
 
-    build.enable_export_compile_commands();
-
     build.set_std(qbs::Stds::CXX23);
     build.enable_warnings();
 
@@ -16,7 +14,6 @@ int main(int argc, char **argv) {
 
     int ret = build.build_and_run("Quoopie");
 
-    qbs::Cmd cmd("rm", "-rf", "build");
 
-    return ret + cmd.run();
+    return ret;
 }
