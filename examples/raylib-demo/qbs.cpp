@@ -10,8 +10,10 @@ int main(int argc, char **argv) {
     qbs::Build build("GLFW");
 
     // Prepare raylib source code
-    qbs::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz");
-    qbs::Utils::decompress("5.5.tar.gz");
+    qbs::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz", "5.5.tar.gz");
+    if (!qbs::Utils::file_exists("raylib-5.5")) {
+        qbs::Utils::decompress("5.5.tar.gz");
+    }
 
     // Prep build settings
     build.set_output_dir("lib");

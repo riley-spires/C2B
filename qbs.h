@@ -82,10 +82,11 @@ namespace qbs {
              *        DEPENDS ON WGET OR CURL
              *
              * @param url The url to receive the file
+             * @param outputPath path to desired output (including extension)
              * @param fetchType The target FetchType (http, git)
-             * @return Status code from attempting to fetch file
+             * @return Status code from attempting to fetch file or 45 if outputPath already exists
              */
-            int fetch(std::string url, FetchType fetchType = FetchType::HTTP);
+            int fetch(std::string url, std::string outputPath, FetchType fetchType = FetchType::HTTP);
 
             /**
              * @brief Decompress the provided path
@@ -116,6 +117,27 @@ namespace qbs {
              */
             std::vector<std::string> file_read_all(std::string path);
 
+            /**
+             * @brief Gives which file is older
+             *
+             * @param path1 path to the first file
+             * @param path2 path to the second file
+             *
+             * @return 0 if path1 and path2 have same modify datetime
+             *         1 if path1 is older than path2
+             *         2 if path2 is older than path1
+             *         3 if one of the paths do not exist
+             *
+             */
+            int file_older(std::string path1, std::string path2);
+
+            /**
+             * @brief Tells if a file exists
+             *
+             * @param path Path to file
+             * @return true if file exists, false if file does not exist
+             */
+            bool file_exists(std::string path);
             
             /**
              * @brief Gets the type of operating system
@@ -131,18 +153,6 @@ namespace qbs {
              */
             Arch get_arch();
             
-            /**
-             * @brief Gives which file is older
-             *
-             * @param path1 path to the first file
-             * @param path2 path to the second file
-             * @return 1 if path1 is older than path2
-             *         -1 if path2 is older than path1
-             *         0 if path1 and path2 have same modify datetime
-             *         -2 if one of the paths do not exist
-             *
-             */
-            int file_older(std::string path1, std::string path2);
     }
 }
 
@@ -247,12 +257,10 @@ namespace qbs {
 
                 return std::async([this]() {
                     FILE *stream = popen(this->string().c_str(), "r");
-
                     assert(stream != nullptr && "Out of ram");
                     std::array<char, 128> buffer;
-                    
+
                     while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {}
-                    
 
                     return pclose(stream);
                 });
@@ -304,37 +312,33 @@ namespace qbs {
                 return tokens;
             }
 
-            int fetch(std::string url, FetchType fetchType) {
-                Cmd cmd("wget > /dev/null 2>&1");
-                std::string mode;
+            int fetch(std::string url, std::string outputPath, FetchType fetchType) {
+                if (fs::directory_entry(outputPath).exists()) {
+                    return 45;
+                }
 
-                int wgetCode = cmd.run();
-                cmd.set_length(0);
+                Cmd cmd;
+
+                FILE *stream = popen("wget > /dev/null 2>&1", "r");
+                assert(stream != nullptr && "Out of ram");
+                std::array<char, 128> buffer;
+                while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {}
+
+                int wgetCode = pclose(stream);
 
                 switch (fetchType) {
                     case HTTP:
                             if (wgetCode == 127) {
-                                cmd.append("curl");
-                                mode = "curl";
+                                cmd.append("curl", "-o");
                             } else {
-                                cmd.append("wget");
-                                mode = "wget";
+                                cmd.append("wget", "-O");
                             }
 
-                            if (mode == "wget") {
-                                cmd.append(url);
-                            } else if (mode == "curl"){
-                                cmd.append("-O", url);
-                            } else {
-                                throw std::logic_error("UNREACHABLE: How did you get here?");
-                            }
-
+                            cmd.append(outputPath, url);
                         break;
                     case GIT:
                         cmd.append("git", "clone", url);
-                        
                         break;
-                    
                     default:
                         throw std::invalid_argument("Unknown fetch type");
                 }
@@ -361,7 +365,7 @@ namespace qbs {
                 while (ext == ".gz" || ext == ".tar" || ext == ".zip" || ext == ".rar") {
                     std::string fileName = file.relative_path().string() + file.filename().string();
                     if (ext == ".gz") {
-                        cmd.append("gzip", "-df", file);
+                        cmd.append("gzip", "-dkf", file);
                     } else if (ext == ".tar") {
                         cmd.append("tar", "-xf", file);
                     } else if (ext == ".zip") {
@@ -405,6 +409,31 @@ namespace qbs {
                 return lines;
             }
 
+            int file_older(std::string path1, std::string path2) {
+                const fs::path path1Path = fs::path(path1);
+                const fs::path path2Path = fs::path(path2);
+        
+                if (!fs::directory_entry(path1Path).exists() ||
+                    !fs::directory_entry(path2Path).exists()) {
+                    return 2;
+                }
+
+                const auto path1WriteTime = fs::last_write_time(path1Path).time_since_epoch().count();
+                const auto path2WriteTime = fs::last_write_time(path2Path).time_since_epoch().count();
+
+                if (path1WriteTime > path2WriteTime) {
+                    return 2;
+                } else if (path2WriteTime > path1WriteTime) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+
+            bool file_exists(std::string path) {
+                return fs::directory_entry(path).exists();
+            }
+
             OS get_os() {
                 #if defined(_WIN32) || defined(_WIN64)
                     return OS::WIN;
@@ -431,26 +460,6 @@ namespace qbs {
                 #endif
             }
 
-            int file_older(std::string path1, std::string path2) {
-                const fs::path path1Path = fs::path(path1);
-                const fs::path path2Path = fs::path(path2);
-
-                if (!fs::directory_entry(path1Path).exists() ||
-                    !fs::directory_entry(path2Path).exists()) {
-                    return -2;
-                }
-
-                const auto path1WriteTime = fs::last_write_time(path1Path).time_since_epoch().count();
-                const auto path2WriteTime = fs::last_write_time(path2Path).time_since_epoch().count();
-
-                if (path1WriteTime > path2WriteTime) {
-                    return -1;
-                } else if (path2WriteTime > path1WriteTime) {
-                    return 1;
-                } else {
-                    return 0;
-                }
-            }
     };
 
     /**
