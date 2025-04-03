@@ -12,6 +12,7 @@ Copy `qbs.h` into your project
 
 The simplest use case is:
 ```c++
+// qbs.cpp
 #include "qbs.h"
 
 int main() {
