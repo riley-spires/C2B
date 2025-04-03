@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     // Prep build settings
     build.set_output_dir("lib");
     build.set_build_type(qbs::BuildType::LIB);
-    build.set_std({ .versionFlag="-std=c99", .extension = ".c" });
+    build.set_std({ .version_flag="-std=c99", .extension = ".c" });
     build.set_export_compile_commands(false);
 
     // Add build directories
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     build.set_output_dir("lib");
     build.set_build_type(qbs::BuildType::LIB);
     build.set_compiler(qbs::Compilers::GCC);
-    build.set_std({ .versionFlag = "-std=c99", .extension = ".c" });
+    build.set_std({ .version_flag = "-std=c99", .extension = ".c" });
     build.set_export_compile_commands(false);
 
     // Add build directories
