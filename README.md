@@ -10,15 +10,26 @@
 
 Copy `qbs.h` into your repo
 
-See `examples/hello-world/build.cpp` for a basic usage case. Then bootstrap build.cpp with your favorite
-c++ compiler. For example:
+The simplest use case is:
+```c++
+#include "qbs.h"
 
-```console
-g++ build.cpp -o build
-./build
+int main() {
+    qbs::Build build("main");
+
+    build.append_src_dir("src");
+
+    return build.build();
+}
 ```
 
-The above commands will compile your project as you have defined in your `build.cpp`
+Then bootstrap the build with your favorite c++ compiler
+```console
+g++ qbs.cpp -o qbs
+./qbs
+```
+
+For more advanced use cases see the [examples](./examples)
 
 ## Dependencies
 
@@ -32,5 +43,4 @@ The above commands will compile your project as you have defined in your `build.
 
 ## Credits
 
-- Heavily inspired by [nob.h](https://github.com/tsoding/nob.h).
-I am hoping to derive more from [nob.h](https://github.com/tsoding/nob.h) as time goes on
+- Inspired by [nob.h](https://github.com/tsoding/nob.h).
