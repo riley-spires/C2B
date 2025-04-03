@@ -8,7 +8,7 @@
 
 ## Getting Started
 
-Copy `qbs.h` into your repo
+Copy `qbs.h` into your project
 
 The simplest use case is:
 ```c++
