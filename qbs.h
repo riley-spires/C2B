@@ -294,7 +294,21 @@ namespace qbs {
              * @return A ftuture with the return code and stdout/stderr of the cmd
              */
             std::future<std::pair<int, std::vector<std::string>>> run_async_capture_output() {
-                return std::async(&Cmd::run_capture_output, this);
+                this->print();
+
+                return std::async([this]() -> std::pair<int, std::vector<std::string>> {
+                    FILE *stream = popen(this->string().c_str(), "r");
+                    
+                    assert(stream != nullptr && "Out of ram");
+                    std::array<char, 128> buffer;
+                    std::string stdout;
+
+                    while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {
+                        stdout += buffer.data();
+                    }
+
+                    return {pclose(stream), Utils::split_string(stdout, '\n')};
+                });
             }
     };
 
