@@ -13,7 +13,7 @@ int main() {
     qbs::Cmd cmd(std::format("sleep {};", SLEEP_TIME), "echo 'sleep done!'");
 
     // Run the cmd asynchronously
-    auto cmdFuture = cmd.run_async_capture_output();
+    auto cmdFuture = cmd.run_async_redirect_output();
 
     // Do other things while cmd is running
     for (int i = 0; i < SLEEP_TIME * SLEEP_TIME * SLEEP_TIME; ++i) {
@@ -23,12 +23,6 @@ int main() {
     // Wait for the command to finish
     auto cmdResult = cmdFuture.get();
 
-    // Print out each line of stdout from the command
-    for (const auto &line : cmdResult.second) {
-        std::cout << line << std::endl;
-    }
-
-
     // return the result code of the command
-    return cmdResult.first;
+    return cmdResult;
 }

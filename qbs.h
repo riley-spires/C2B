@@ -1,6 +1,9 @@
 #ifndef QBS_H
 #define QBS_H
 
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -250,6 +253,8 @@ namespace qbs {
      * @class Cmd
      * @brief A class that runs shell commands
      *
+     * @note This class does not support stdin. 
+     *
      */
     class Cmd {
         private:
@@ -261,11 +266,6 @@ namespace qbs {
 
             void print() {
                 std::string cmd = this->string();
-                auto split = Utils::split_string(cmd);
-                cmd = "";
-                for (int i = 0; i < split.size() - 1; ++i) {
-                    cmd += split[i] + " ";
-                }   
                 
                 Loggers::stdout.log_info(cmd) << std::endl;
             }
@@ -322,13 +322,11 @@ namespace qbs {
                     sb += " ";
                 }
 
-                sb += "2>&1";
-
                 return sb;
             }
             
             /**
-             * @brief Runs the cmd in current user shell
+             * @brief Runs the cmd in current user shell without any output
              *
              * @return status code from the cmd
              */
@@ -337,21 +335,37 @@ namespace qbs {
             }
 
             /**
-             * @brief Runs a cmd asynchronously
+             * @brief Runs a cmd asynchronously without any output
              *
              * @return A future with the return code of the cmd
              */
             std::future<int> run_async() {
                 this->print();
 
-                return std::async([this]() {
-                    FILE *stream = popen(this->string().c_str(), "r");
-                    assert(stream != nullptr && "Out of ram");
-                    std::array<char, 128> buffer;
+                return std::async([this]() -> int {
+                    int dev_null = open("/dev/null", O_WRONLY);
+                    pid_t pid = fork();
 
-                    while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {}
+                    if (pid == 0) {
+                        dup2(dev_null, STDOUT_FILENO);
+                        dup2(dev_null, STDERR_FILENO);
 
-                    return pclose(stream);
+                        close(dev_null);
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell,"-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        int status;
+                        close(dev_null);
+
+                        waitpid(pid, &status, 0);
+                        return WEXITSTATUS(status);
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
+                    }
                 });
             }
 
@@ -359,48 +373,127 @@ namespace qbs {
              * @brief Runs the command synchronously, capturing stdout & stderr
              *
              *
-             * @return The return code and output of cmd ran
+             * @return The return code, stdout, and stderr of cmd ran
              */
-            std::pair<int, std::vector<std::string>> run_capture_output() {
+            std::tuple<int, std::vector<std::string>, std::vector<std::string>> run_capture_output() {
                 return this->run_async_capture_output().get();
             }
 
             /**
              * @brief Runs the command asynchronouly, capturing stdout & stderr
              *
-             * @return A ftuture with the return code and stdout/stderr of the cmd
+             * @return A future with the return code, stdout, and stderr of the cmd
              */
-            std::future<std::pair<int, std::vector<std::string>>> run_async_capture_output() {
+            std::future<std::tuple<int, std::vector<std::string>, std::vector<std::string>>> run_async_capture_output() {
                 this->print();
 
-                return std::async([this]() -> std::pair<int, std::vector<std::string>> {
-                    FILE *stream = popen(this->string().c_str(), "r");
-                    
-                    assert(stream != nullptr && "Out of ram");
-                    std::array<char, 128> buffer;
-                    std::string stdout;
+                return std::async([this]() -> std::tuple<int, std::vector<std::string>, std::vector<std::string>> {
+                    std::vector<std::string> stdout, stderr;
+                    int stdout_pipe[2], stderr_pipe[2];
 
-                    while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {
-                        stdout += buffer.data();
+                    pipe(stdout_pipe);
+                    pipe(stderr_pipe);
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        dup2(stdout_pipe[1], STDOUT_FILENO);
+                        close(stdout_pipe[0]);
+
+                        dup2(stderr_pipe[1], STDERR_FILENO);
+                        close(stderr_pipe[0]);
+
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell, "-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        close(stdout_pipe[1]);
+                        close(stderr_pipe[1]);
+                        
+                        std::array<char, 128> buffer;
+                        ssize_t count;
+
+                        while ((count = read(stdout_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            buffer[count] = '\0';
+                            std::stringstream ss(buffer.data());
+                            std::string line;
+                            while (std::getline(ss, line)) {
+                                stderr.push_back(line);
+                            }
+                        }
+                        close(stdout_pipe[0]);
+                
+
+                        while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            /*buffer[count] = '\0';*/
+                            std::stringstream ss(buffer.data());
+                            std::string line;
+                            while (std::getline(ss, line)) {
+                                stderr.push_back(line);
+                            }
+                        }
+                        close(stderr_pipe[0]);
+
+                        int status;
+                        waitpid(pid, &status, 0);
+                        return {WEXITSTATUS(status), stdout, stderr};
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
                     }
 
-                    return {pclose(stream), Utils::split_string(stdout, '\n')};
                 });
             }
 
-            std::future<int> run_async_redirect_output(std::ostream &stream = std::cout) {
+            std::future<int> run_async_redirect_output(std::ostream &std_stream = std::cout, std::ostream &err_stream = std::cerr) {
                 this->print();
 
-                return std::async([this, &stream]() -> int{
-                    FILE *file_stream = popen(this->string().c_str(), "r");
-                    assert(file_stream != nullptr && "Out of ram");
-                    std::array<char, 128> buffer;
+                return std::async([this, &std_stream, &err_stream]() -> int{
+                    int stdout_pipe[2], stderr_pipe[2];
 
-                    while (fgets(buffer.data(), buffer.size(), file_stream) != nullptr) {
-                        stream << buffer.data();
+                    pipe(stdout_pipe);
+                    pipe(stderr_pipe);
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        dup2(stdout_pipe[1], STDOUT_FILENO);
+                        close(stdout_pipe[0]);
+
+                        dup2(stderr_pipe[1], STDERR_FILENO);
+                        close(stderr_pipe[0]);
+
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell, "-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        close(stdout_pipe[1]);
+                        close(stderr_pipe[1]);
+                        
+                        std::array<char, 2048> buffer;
+                        ssize_t count;
+
+                        while ((count = read(stdout_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            std_stream << buffer.data();
+                        
+                        }
+                        close(stdout_pipe[0]);
+
+                        while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            err_stream << buffer.data();
+                        }
+                        close(stderr_pipe[0]);
+
+                        int status;
+                        waitpid(pid, &status, 0);
+                        return WEXITSTATUS(status);
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
                     }
-                
-                    return pclose(file_stream);
+
                 });
             }
 
