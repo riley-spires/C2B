@@ -158,6 +158,95 @@ namespace qbs {
 
 namespace qbs {
     /**
+     * @class Logger
+     * @brief A class that logs messages to a stream
+     *
+     */
+    class Logger {
+        private:
+            std::ostream &stream;
+        public:
+            Logger(std::ostream &stream) : stream(stream) {}
+
+            enum Level { INFO, ERROR, WARNING, FATAL };
+
+            std::ostream& log(Level level, std::string msg) {
+                switch (level) {
+                    case INFO:
+                        log_info(msg);
+                        break;
+                    case ERROR:
+                        log_error(msg);
+                        break;
+                    case WARNING:
+                        log_warning(msg);
+                        break;
+                    case FATAL:
+                        log_fatal(msg);
+                        break;
+                    default:
+                        throw std::invalid_argument("Unknown log level");
+                }
+
+                return stream;
+            }
+            
+            /**
+             * @brief Log a message to the provided stream with info level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_info(std::string msg) {
+                stream << "[INFO] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with error level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_error(std::string msg) {
+                stream << "[ERROR] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with warning level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_warning(std::string msg) {
+                stream << "[WARNING] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with fatal level
+             *        and exit the program with the provided exit code
+             *
+             * @param msg The message to log
+             * @param exit_code The exit code to exit with
+             */
+            void log_fatal(std::string msg,  int exit_code = 1) {
+                stream << "[FATAL] " << msg;
+
+                std::exit(exit_code);
+            }
+    };
+
+    namespace Loggers {
+        Logger stdout(std::cout);
+        Logger stderr(std::cerr);
+    }
+
+    /**
      * @class Cmd
      * @brief A class that runs shell commands
      *
@@ -178,7 +267,7 @@ namespace qbs {
                     cmd += split[i] + " ";
                 }   
                 
-                std::cout << "[INFO] " << cmd << std::endl;
+                Loggers::stdout.log_info(cmd) << std::endl;
             }
         public:
             template<typename... Args>
@@ -297,6 +386,26 @@ namespace qbs {
 
                     return {pclose(stream), Utils::split_string(stdout, '\n')};
                 });
+            }
+
+            std::future<int> run_async_redirect_output(std::ostream &stream = std::cout) {
+                this->print();
+
+                return std::async([this, &stream]() -> int{
+                    FILE *file_stream = popen(this->string().c_str(), "r");
+                    assert(file_stream != nullptr && "Out of ram");
+                    std::array<char, 128> buffer;
+
+                    while (fgets(buffer.data(), buffer.size(), file_stream) != nullptr) {
+                        stream << buffer.data();
+                    }
+                
+                    return pclose(file_stream);
+                });
+            }
+
+            int run_redirect_output(std::ostream &stream = std::cout) {
+                return this->run_async_redirect_output(stream).get();
             }
     };
 
@@ -898,7 +1007,7 @@ namespace qbs {
                         throw std::runtime_error("UNREACHABLE: How did you get here?");
                     }
                 } else {
-                    std::cout << "[INFO] Target " << project_name << " already up to date" << std::endl;
+                    Loggers::stdout.log_info("Target " + project_name + " already up to date") << std::endl;
                 }
 
 
@@ -948,13 +1057,9 @@ namespace qbs {
 
                 Cmd cmd(exe);
 
-                auto result = cmd.run_capture_output();
+                auto result = cmd.run_redirect_output();
 
-                for (const auto &line : result.second) {
-                    std::cout << line << std::endl;
-                }
-
-                return result.first;
+                return result;
             }
     };
 

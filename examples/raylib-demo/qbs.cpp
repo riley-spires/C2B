@@ -29,7 +29,9 @@ int main(int argc, char **argv) {
     build.append_flag("D_GLFW_X11", "fpermissive", "O1");
 
     // Build GLFW
-    build.build();
+    if (build.build() != 0) {
+        qbs::Loggers::stderr.log_fatal("Failed to build GLFW");
+    }
 
     // Clear build to build raylib next
     build.clear("raylib");
@@ -53,7 +55,9 @@ int main(int argc, char **argv) {
     build.append_link_file("GLFW");
 
     // Build raylib
-    build.build();
+    if (build.build() != 0) {
+        qbs::Loggers::stderr.log_fatal("Failed to build raylib");
+    }
 
     // Clear the build to build our final program
     build.clear("main");
