@@ -273,19 +273,7 @@ namespace qbs {
              * @return The return code and output of cmd ran
              */
             std::pair<int, std::vector<std::string>> run_capture_output() {
-                this->print();
-
-                FILE *stream = popen(this->string().c_str(), "r");
-                
-                assert(stream != nullptr && "Out of ram");
-                std::array<char, 128> buffer;
-                std::string stdout;
-
-                while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {
-                    stdout += buffer.data();
-                }
-
-                return {pclose(stream), Utils::split_string(stdout, '\n')};
+                return this->run_async_capture_output().get();
             }
 
             /**
