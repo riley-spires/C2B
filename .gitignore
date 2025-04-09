@@ -46,3 +46,5 @@ examples/raylib-demo/lib
 **/compile_commands.json
 **.cache
 
+# Log example
+examples/logger/log.txt
