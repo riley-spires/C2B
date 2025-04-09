@@ -1,4 +1,4 @@
-# Quoopie Build System (QBS)
+# C++ to Build(C2B)
 
 > [!CAUTION]
 > This project is in active development.
@@ -8,15 +8,15 @@
 
 ## Getting Started
 
-Copy `qbs.h` into your project
+Copy `c2b.h` into your project
 
 The simplest use case is:
 ```c++
-// qbs.cpp
-#include "qbs.h"
+// c2b.cpp
+#include "c2b.h"
 
 int main() {
-    qbs::Build build("main");
+    c2b::Build build("main");
 
     build.append_src_dir("src");
 
@@ -26,8 +26,8 @@ int main() {
 
 Then bootstrap the build with your favorite c++ compiler
 ```console
-g++ qbs.cpp -o qbs
-./qbs
+g++ c2b.cpp -o c2b
+./c2b
 ```
 
 For more advanced use cases see the [examples](./examples)

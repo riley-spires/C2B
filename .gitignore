@@ -35,7 +35,7 @@
 **/build
 **/output
 **/main
-**/qbs
+**/c2b
 
 # Raylib Demo
 examples/raylib-demo/*5.5*

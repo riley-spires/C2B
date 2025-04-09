@@ -1,4 +1,4 @@
-#include "../../qbs.h"
+#include "../../c2b.h"
 
 #include <format>
 
@@ -10,7 +10,7 @@ int main() {
     // NOTE: This is not the recommended way to use Cmd, but is used this way for demo purposes
     //       Proper use would be multiple Cmd objects, or reset the current one after running
     //       with cmd.set_length(0)
-    qbs::Cmd cmd(std::format("sleep {};", SLEEP_TIME), "echo 'sleep done!'");
+    c2b::Cmd cmd(std::format("sleep {};", SLEEP_TIME), "echo 'sleep done!'");
 
     // Run the cmd asynchronously
     auto cmdFuture = cmd.run_async_redirect_output();

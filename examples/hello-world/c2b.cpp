@@ -1,12 +1,12 @@
-#include "../../qbs.h"
+#include "../../c2b.h"
 
 
 int main(int argc, char **argv) {
-    qbs::Build::rebuild_self(argc, argv, __FILE__);
+    c2b::Build::rebuild_self(argc, argv, __FILE__);
 
-    qbs::Build build("main");
+    c2b::Build build("main");
 
-    build.set_std(qbs::Stds::CXX23);
+    build.set_std(c2b::Stds::CXX23);
     build.enable_warnings();
 
     build.append_include_dir("include");

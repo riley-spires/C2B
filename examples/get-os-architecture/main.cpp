@@ -1,26 +1,26 @@
 #include <iostream>
 
-#include "../../qbs.h"
+#include "../../c2b.h"
 
 
 
 int main() {
-    auto os = qbs::Utils::get_os();
-    auto arch = qbs::Utils::get_arch();
+    auto os = c2b::Utils::get_os();
+    auto arch = c2b::Utils::get_arch();
 
     std::cout << "OS: ";
 
     switch (os) {
-        case qbs::OS::WIN:
+        case c2b::OS::WIN:
             std::cout << "Windows" << std::endl;
             break;
-        case qbs::OS::LINUX:
+        case c2b::OS::LINUX:
             std::cout << "Linux" << std::endl;
             break;
-        case qbs::OS::MAC:
+        case c2b::OS::MAC:
             std::cout << "Mac" << std::endl;
             break;
-        case qbs::OS::UNKNOWN:
+        case c2b::OS::UNKNOWN:
             std::cout << "Unknown. Please submit an issue with details about your device" << std::endl;
             break;
         default:
@@ -30,19 +30,19 @@ int main() {
     std::cout << "Architecture: ";
 
     switch (arch) {
-        case qbs::Arch::ARM32:
+        case c2b::Arch::ARM32:
             std::cout << "ARM 32 bit" << std::endl;
             break;
-        case qbs::Arch::ARM64:
+        case c2b::Arch::ARM64:
             std::cout << "ARM64" << std::endl;
             break;
-        case qbs::Arch::X64:
+        case c2b::Arch::X64:
             std::cout << "x64" << std::endl;
             break;
-        case qbs::Arch::X86:
+        case c2b::Arch::X86:
             std::cout << "x86" << std::endl;
             break;
-        case qbs::Arch::UKNOWN:
+        case c2b::Arch::UKNOWN:
             std::cout << "Unknown. Please submit an issue with details about your device" << std::endl;
             break;
         default:

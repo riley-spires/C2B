@@ -1,5 +1,5 @@
-#ifndef QBS_H
-#define QBS_H
+#ifndef C2B_H
+#define C2B_H
 
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -23,7 +23,7 @@
 namespace fs = std::filesystem;
 
 // Forward declare Utils, types, and consts to be used throughout rest of file
-namespace qbs {
+namespace c2b {
     /**
      * @class Compiler_t
      * @brief Type for defining custom compilers
@@ -159,7 +159,7 @@ namespace qbs {
     }
 }
 
-namespace qbs {
+namespace c2b {
     /**
      * @class Logger
      * @brief A class that logs messages to a stream
@@ -1161,5 +1161,4 @@ namespace qbs {
 }
 
 
-
-#endif //QBS_H
+#endif //C2B_H

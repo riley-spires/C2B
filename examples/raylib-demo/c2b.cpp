@@ -1,23 +1,23 @@
-#include "../../qbs.h"
+#include "../../c2b.h"
 
 
 
 int main(int argc, char **argv) {
     // Enable rebuild self
-    qbs::Build::rebuild_self(argc, argv, __FILE__);
+    c2b::Build::rebuild_self(argc, argv, __FILE__);
 
     // First we are going to build GLFW
-    qbs::Build build("GLFW");
+    c2b::Build build("GLFW");
 
     // Prepare raylib source code
-    qbs::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz", "5.5.tar.gz");
-    if (!qbs::Utils::file_exists("raylib-5.5")) {
-        qbs::Utils::decompress("5.5.tar.gz");
+    c2b::Utils::fetch("https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz", "5.5.tar.gz");
+    if (!c2b::Utils::file_exists("raylib-5.5")) {
+        c2b::Utils::decompress("5.5.tar.gz");
     }
 
     // Prep build settings
     build.set_output_dir("lib");
-    build.set_build_type(qbs::BuildType::LIB);
+    build.set_build_type(c2b::BuildType::LIB);
     build.set_std({ .version_flag="-std=c99", .extension = ".c" });
     build.set_export_compile_commands(false);
 
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
 
     // Build GLFW
     if (build.build() != 0) {
-        qbs::Loggers::stderr.log_fatal("Failed to build GLFW");
+        c2b::Loggers::stderr.log_fatal("Failed to build GLFW");
     }
 
     // Clear build to build raylib next
@@ -38,8 +38,8 @@ int main(int argc, char **argv) {
 
     // Prep build settings
     build.set_output_dir("lib");
-    build.set_build_type(qbs::BuildType::LIB);
-    build.set_compiler(qbs::Compilers::GCC);
+    build.set_build_type(c2b::BuildType::LIB);
+    build.set_compiler(c2b::Compilers::GCC);
     build.set_std({ .version_flag = "-std=c99", .extension = ".c" });
     build.set_export_compile_commands(false);
 
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 
     // Build raylib
     if (build.build() != 0) {
-        qbs::Loggers::stderr.log_fatal("Failed to build raylib");
+        c2b::Loggers::stderr.log_fatal("Failed to build raylib");
     }
 
     // Clear the build to build our final program
