@@ -1,29 +1,259 @@
 #ifndef QBS_H
 #define QBS_H
 
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <array>
+#include <cassert>
 #include <cmath>
+#include <fstream>
+#include <future>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
+#include <format>
 
 namespace fs = std::filesystem;
 
+// Forward declare Utils, types, and consts to be used throughout rest of file
 namespace qbs {
+    /**
+     * @class Compiler_t
+     * @brief Type for defining custom compilers
+     *
+     */
+    struct Compiler_t {
+        std::string cmd_base;
+    };
 
-    enum Compiler { clang, gpp };
-    // Major cxx versions taken from https://en.cppreference.com/w/cpp/language/history
-    enum CxxVersion { cpp11, cpp14, cpp17, cpp20, cpp23 };
-    enum BuildType { exe, lib };
-    enum FileType { cpp, c, h, hpp };
-    enum FetchType { git, http };
+    /**
+     * @brief Contains predefined compilers
+     *
+     */
+    namespace Compilers {
+        const Compiler_t GCC = { .cmd_base = "gcc" };
+        const Compiler_t GPP = { .cmd_base = "g++" };
+        const Compiler_t CLANG = { .cmd_base = "clang" };
+    }
 
+    /**
+     * @class Std_t
+     * @brief Type for defining custom standard versions
+     *        Major cxx versions taken from https://en.cppreference.com/w/cpp/language/history
+     * 
+     */
+    struct Std_t {
+        std::string version_flag;
+        std::string extension;
+    };
+
+    /**
+     * @brief Contains predefined standard versions
+     *
+     */
+    namespace Stds {
+        const Std_t CXX11 = { .version_flag = "-std=c++11", .extension = "cpp" };
+        const Std_t CXX14 = { .version_flag = "-std=c++14", .extension = "cpp" };
+        const Std_t CXX17 = { .version_flag = "-std=c++17", .extension = "cpp" };
+        const Std_t CXX20 = { .version_flag = "-std=c++20", .extension = "cpp" };
+        const Std_t CXX23 = { .version_flag = "-std=c++23", .extension = "cpp" };
+    }
+    enum BuildType { EXE, LIB };
+    enum FetchType { GIT, HTTP };
+    enum OS { WIN, MAC, LINUX, UNKNOWN };
+    enum Arch { X86, X64, ARM64, ARM32, UKNOWN };
+
+    namespace Utils {
+            /**
+             * @brief Splits the string based on the delimeter provided
+             *
+             * @param str The string to be split
+             * @param delim The character to split the string with
+             * @return A vector of strings containing each substring from the split
+             */
+            std::vector<std::string> split_string(std::string str, char delim = ' ');
+
+            /**
+             * @brief Fetches a file from a url
+             *        DEPENDS ON WGET OR CURL
+             *
+             * @param url The url to receive the file
+             * @param output_path path to desired output (including extension)
+             * @param fetch_type The target FetchType (http, git)
+             * @return Status code from attempting to fetch file or 45 if output_path already exists
+             */
+            int fetch(std::string url, std::string output_path, FetchType fetch_type = FetchType::HTTP);
+
+            /**
+             * @brief Decompress the provided path
+             *        Currently supports .zip, .tar, .gz, and .rar
+             *        Relies upon the following shell commands:
+             *          tar
+             *          gzip
+             *          unrar
+             *          unzip
+             * @param path The file to be decompressed
+             * @return  The sum of ran command's exit codes
+             */
+            int decompress(std::string path);
+
+            /**
+             * @brief Makes a directory at the provided path if that directory does not exist
+             *
+             * @param path Path to the directory to be made
+             * @return Return code of `mkdir` Command
+             */
+            int make_dir_if_not_exists(std::string path);
+
+            /**
+             * @brief Read all lines of the provided file
+             *
+             * @param path Path to the file to read
+             * @return All lines of the provided file
+             */
+            std::vector<std::string> file_read_all(std::string path);
+
+            /**
+             * @brief Gives which file is older
+             *
+             * @param path1 path to the first file
+             * @param path2 path to the second file
+             *
+             * @return 0 if path1 and path2 have same modify datetime
+             *         1 if path1 is older than path2
+             *         2 if path2 is older than path1
+             *         3 if one of the paths do not exist
+             *
+             */
+            int file_older(std::string path1, std::string path2);
+
+            /**
+             * @brief Tells if a file exists
+             *
+             * @param path Path to file
+             * @return true if file exists, false if file does not exist
+             */
+            bool file_exists(std::string path);
+            
+            /**
+             * @brief Gets the type of operating system
+             *
+             * @return The type of operating system
+             */
+            OS get_os();
+
+            /**
+             * @brief Gets the type of architecture of the system
+             *
+             * @return The type of architecture of the system
+             */
+            Arch get_arch();
+            
+    }
+}
+
+namespace qbs {
+    /**
+     * @class Logger
+     * @brief A class that logs messages to a stream
+     *
+     */
+    class Logger {
+        private:
+            std::ostream &stream;
+        public:
+            Logger(std::ostream &stream) : stream(stream) {}
+
+            enum Level { INFO, ERROR, WARNING, FATAL };
+
+            std::ostream& log(Level level, std::string msg) {
+                switch (level) {
+                    case INFO:
+                        log_info(msg);
+                        break;
+                    case ERROR:
+                        log_error(msg);
+                        break;
+                    case WARNING:
+                        log_warning(msg);
+                        break;
+                    case FATAL:
+                        log_fatal(msg);
+                        break;
+                    default:
+                        throw std::invalid_argument("Unknown log level");
+                }
+
+                return stream;
+            }
+            
+            /**
+             * @brief Log a message to the provided stream with info level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_info(std::string msg) {
+                stream << "[INFO] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with error level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_error(std::string msg) {
+                stream << "[ERROR] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with warning level
+             *
+             * @param msg The message to log
+             * @return reference to the stream
+             */
+            std::ostream& log_warning(std::string msg) {
+                stream << "[WARNING] " << msg;
+
+                return stream;
+            }
+
+            /**
+             * @brief Log a message to the provided stream with fatal level
+             *        and exit the program with the provided exit code
+             *
+             * @param msg The message to log
+             * @param exit_code The exit code to exit with
+             */
+            void log_fatal(std::string msg,  int exit_code = 1) {
+                stream << "[FATAL] " << msg;
+
+                std::exit(exit_code);
+            }
+    };
+
+    namespace Loggers {
+        Logger stdout(std::cout);
+        Logger stderr(std::cerr);
+    }
 
     /**
      * @class Cmd
      * @brief A class that runs shell commands
+     *
+     * @note This class does not support stdin. 
      *
      */
     class Cmd {
@@ -32,7 +262,13 @@ namespace qbs {
             size_t length;
     
             // to handle variadic append_many recursion end
-            void append() {};
+            void append() {}
+
+            void print() {
+                std::string cmd = this->string();
+                
+                Loggers::stdout.log_info(cmd) << std::endl;
+            }
         public:
             template<typename... Args>
             Cmd(Args... args) : args{std::forward<Args>(args)...} {
@@ -90,81 +326,223 @@ namespace qbs {
             }
             
             /**
-             * @brief Runs the cmd in current user shell
+             * @brief Runs the cmd in current user shell without any output
              *
              * @return status code from the cmd
              */
             int run() {
-                std::string cmd = this->string();
+                return this->run_async().get();
+            }
 
-                std::cout << "[INFO] " << cmd << std::endl;
+            /**
+             * @brief Runs a cmd asynchronously without any output
+             *
+             * @return A future with the return code of the cmd
+             */
+            std::future<int> run_async() {
+                this->print();
+
+                return std::async([this]() -> int {
+                    int dev_null = open("/dev/null", O_WRONLY);
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        dup2(dev_null, STDOUT_FILENO);
+                        dup2(dev_null, STDERR_FILENO);
+
+                        close(dev_null);
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell,"-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        int status;
+                        close(dev_null);
+
+                        waitpid(pid, &status, 0);
+                        return WEXITSTATUS(status);
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
+                    }
+                });
+            }
+
+            /**
+             * @brief Runs the command synchronously, capturing stdout & stderr
+             *
+             *
+             * @return The return code, stdout, and stderr of cmd ran
+             */
+            std::tuple<int, std::vector<std::string>, std::vector<std::string>> run_capture_output() {
+                return this->run_async_capture_output().get();
+            }
+
+            /**
+             * @brief Runs the command asynchronouly, capturing stdout & stderr
+             *
+             * @return A future with the return code, stdout, and stderr of the cmd
+             */
+            std::future<std::tuple<int, std::vector<std::string>, std::vector<std::string>>> run_async_capture_output() {
+                this->print();
+
+                return std::async([this]() -> std::tuple<int, std::vector<std::string>, std::vector<std::string>> {
+                    std::vector<std::string> stdout, stderr;
+                    int stdout_pipe[2], stderr_pipe[2];
+
+                    pipe(stdout_pipe);
+                    pipe(stderr_pipe);
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        dup2(stdout_pipe[1], STDOUT_FILENO);
+                        close(stdout_pipe[0]);
+
+                        dup2(stderr_pipe[1], STDERR_FILENO);
+                        close(stderr_pipe[0]);
+
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell, "-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        close(stdout_pipe[1]);
+                        close(stderr_pipe[1]);
+                        
+                        std::array<char, 128> buffer;
+                        ssize_t count;
+
+                        while ((count = read(stdout_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            buffer[count] = '\0';
+                            std::stringstream ss(buffer.data());
+                            std::string line;
+                            while (std::getline(ss, line)) {
+                                stderr.push_back(line);
+                            }
+                        }
+                        close(stdout_pipe[0]);
                 
-                return std::system(cmd.c_str());
+
+                        while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            /*buffer[count] = '\0';*/
+                            std::stringstream ss(buffer.data());
+                            std::string line;
+                            while (std::getline(ss, line)) {
+                                stderr.push_back(line);
+                            }
+                        }
+                        close(stderr_pipe[0]);
+
+                        int status;
+                        waitpid(pid, &status, 0);
+                        return {WEXITSTATUS(status), stdout, stderr};
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
+                    }
+
+                });
+            }
+
+            std::future<int> run_async_redirect_output(std::ostream &std_stream = std::cout, std::ostream &err_stream = std::cerr) {
+                this->print();
+
+                return std::async([this, &std_stream, &err_stream]() -> int{
+                    int stdout_pipe[2], stderr_pipe[2];
+
+                    pipe(stdout_pipe);
+                    pipe(stderr_pipe);
+                    pid_t pid = fork();
+
+                    if (pid == 0) {
+                        dup2(stdout_pipe[1], STDOUT_FILENO);
+                        close(stdout_pipe[0]);
+
+                        dup2(stderr_pipe[1], STDERR_FILENO);
+                        close(stderr_pipe[0]);
+
+                        const char *shell = getenv("SHELL");
+                        execl(shell, shell, "-c", this->string().c_str(), nullptr);
+
+                        perror("execl");
+                        exit(EXIT_FAILURE);
+                    } else if (pid > 0) {
+                        close(stdout_pipe[1]);
+                        close(stderr_pipe[1]);
+                        
+                        std::array<char, 2048> buffer;
+                        ssize_t count;
+
+                        while ((count = read(stdout_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            std_stream << buffer.data();
+                        
+                        }
+                        close(stdout_pipe[0]);
+
+                        while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            err_stream << buffer.data();
+                        }
+                        close(stderr_pipe[0]);
+
+                        int status;
+                        waitpid(pid, &status, 0);
+                        return WEXITSTATUS(status);
+                    } else {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
+                    }
+
+                });
+            }
+
+            int run_redirect_output(std::ostream &stream = std::cout) {
+                return this->run_async_redirect_output(stream).get();
             }
     };
 
     namespace Utils {
-            /**
-             * @brief Splits the string based on the delimeter provided
-             *
-             * @param str The string to be split
-             * @param delim The character to split the string with
-             * @return A vector of strings containing each substring from the split
-             */
-            std::vector<std::string> splitString(std::string str, char delim) {
-                std::vector<std::string> ret;
-                std::string sb;
-                
-                for (const auto &c : str) {
-                    if (c == delim) {
-                        ret.push_back(sb);
-                        sb = "";
-                    }
+            std::vector<std::string> split_string(std::string str, char delim) {
+                std::vector<std::string> tokens;
+                std::stringstream input_stream(str);
+                std::string curr_token;
 
-                    sb += c;
+                while (std::getline(input_stream, curr_token, delim)) {
+                    tokens.push_back(curr_token);
                 }
 
-                if (str[str.length() - 1] != delim && !sb.empty()) ret.push_back(sb);
 
-                return ret;
+                return tokens;
             }
 
-            /**
-             * @brief Fetches a file from a url
-             *        DEPENDS ON WGET OR CURL
-             *
-             * @param url The url to receive the file
-             * @param fetchType The target FetchType (http, git)
-             * @return Status code from attempting to fetch file
-             */
-            int fetch(std::string url, FetchType fetchType = FetchType::http) {
+            int fetch(std::string url, std::string output_path, FetchType fetch_type) {
+                if (fs::directory_entry(output_path).exists()) {
+                    return 45;
+                }
+
                 Cmd cmd;
-                std::string mode;
 
-                switch (fetchType) {
-                    case http:
-                            if (std::system("wget > /dev/null 2>&1") == 127) {
-                                cmd.append("curl");
-                                mode = "curl";
+                FILE *stream = popen("wget > /dev/null 2>&1", "r");
+                assert(stream != nullptr && "Out of ram");
+                std::array<char, 128> buffer;
+                while (fgets(buffer.data(), buffer.size(), stream) != nullptr) {}
+
+                int wget_code = pclose(stream);
+
+                switch (fetch_type) {
+                    case HTTP:
+                            if (wget_code == 127) {
+                                cmd.append("curl", "-o");
                             } else {
-                                cmd.append("wget");
-                                mode = "wget";
+                                cmd.append("wget", "-O");
                             }
 
-                            if (mode == "wget") {
-                                cmd.append(url);
-                            } else if (mode == "curl"){
-                                cmd.append("-O", url);
-                            } else {
-                                throw std::logic_error("UNREACHABLE: How did you get here?");
-                            }
-
+                            cmd.append(output_path, url);
                         break;
-                    case git:
+                    case GIT:
                         cmd.append("git", "clone", url);
-                        
                         break;
-                    
                     default:
                         throw std::invalid_argument("Unknown fetch type");
                 }
@@ -173,24 +551,12 @@ namespace qbs {
                 return cmd.run();
             }
 
-            /**
-             * @brief Decompress the provided path
-             *        Currently supports .zip, .tar, .gz, and .rar
-             *        Relies upon the following shell commands:
-             *          tar
-             *          gzip
-             *          unrar
-             *          unzip
-             * @param path The file to be decompressed
-             * @return  The sum of ran command's exit codes
-             */
             int decompress(std::string path) {
                 auto file = fs::path(path);
 
                 if (!file.has_extension()) {
                     throw std::invalid_argument("Unable to compress file that doesn't have an extension");
                 }
-
 
                 std::string ext = file.extension();
         
@@ -201,15 +567,14 @@ namespace qbs {
                 Cmd cmd;
                 int ret = 0;
                 while (ext == ".gz" || ext == ".tar" || ext == ".zip" || ext == ".rar") {
-                    std::string fileName = file.relative_path().string() + file.filename().string();
+                    std::string file_name = file.relative_path().string() + file.filename().string();
                     if (ext == ".gz") {
-                        std::cout << file << std::endl;
-                        cmd.append("gzip", "-d", file);
-                    } else if (".tar") {
+                        cmd.append("gzip", "-dkf", file);
+                    } else if (ext == ".tar") {
                         cmd.append("tar", "-xf", file);
-                    } else if (".zip") {
+                    } else if (ext == ".zip") {
                         cmd.append("unzip", file);
-                    } else if (".rar") {
+                    } else if (ext == ".rar") {
                         cmd.append("unrar", "x", file);
                     } else {
                         throw std::logic_error("UNREACHABLE: How did you get here?");
@@ -226,12 +591,6 @@ namespace qbs {
                 return ret;
             }
 
-            /**
-             * @brief Makes a directory at the provided path if that directory does not exist
-             *
-             * @param path Path to the directory to be made
-             * @return Return code of `mkdir` Command
-             */
             int make_dir_if_not_exists(std::string path) {
                 auto dir = fs::directory_entry(path);
 
@@ -243,6 +602,70 @@ namespace qbs {
 
                 return cmd.run();
             }
+
+            // TODO: Move file functions into nested namespace
+
+            std::vector<std::string> file_read_all(std::string path) {
+                std::vector<std::string> lines;
+                std::string buf;
+                std::ifstream file(path);
+                
+                while (std::getline(file, buf)) lines.push_back(buf);
+
+                return lines;
+            }
+
+            int file_older(std::string path1, std::string path2) {
+                const fs::path path1Path = fs::path(path1);
+                const fs::path path2Path = fs::path(path2);
+        
+                if (!fs::directory_entry(path1Path).exists() ||
+                    !fs::directory_entry(path2Path).exists()) {
+                    return 2;
+                }
+
+                const auto path1_write_time = fs::last_write_time(path1Path).time_since_epoch().count();
+                const auto path2_write_time = fs::last_write_time(path2Path).time_since_epoch().count();
+
+                if (path1_write_time > path2_write_time) {
+                    return 2;
+                } else if (path2_write_time > path1_write_time) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+
+            bool file_exists(std::string path) {
+                return fs::directory_entry(path).exists();
+            }
+
+            OS get_os() {
+                #if defined(_WIN32) || defined(_WIN64)
+                    return OS::WIN;
+                #elif defined(__linux__)
+                    return OS::LINUX;
+                #elif defined(__APPLE__) || defined(__MACH__)
+                    return OS::MAC;
+                #else
+                    return OS::UNKNOWN;
+                #endif
+            }
+
+            Arch get_arch() {
+                #if defined(_M_X64) || defined(__x86_64__)
+                    return Arch::X64;
+                #elif defined(_M_IX86) || defined(__i386__)
+                    return Arch::X86;
+                #elif defined(_M_ARM64) || defined(__aarch64__)
+                    return Arch::ARM64;
+                #elif defined(_M_ARM) || defined(__arm__)
+                    return Arch::ARM32;
+                #else
+                    return Arch::UNKNOWN;
+                #endif
+            }
+
     };
 
     /**
@@ -252,89 +675,18 @@ namespace qbs {
      */
     class Build {
         private:
-            std::vector<std::string> sourceFiles;
-            std::vector<std::string> includeDirs;
-            std::vector<std::string> linkDirs;
-            std::vector<std::string> linkFiles;
+            std::vector<std::string> source_files;
+            std::vector<std::string> include_dirs;
+            std::vector<std::string> link_dirs;
+            std::vector<std::string> link_files;
             std::vector<std::string> flags;
-            std::vector<std::string> runArgs;
-            Compiler compiler;
-            CxxVersion version;
-            BuildType buildType;
-            std::string projectName;
-            std::string outputDir;
-
-            void prep_compile_cmd(Cmd *cmd, FileType fileType) {
-                switch (this->compiler) {
-                    case Compiler::clang :
-                        cmd->append("clang");
-                        break;
-                    case Compiler::gpp:
-                        cmd->append("g++");
-                        break;
-                    default:
-                        throw std::invalid_argument("Unknown compiler option");
-                }
-
-                if (fileType == FileType::cpp) {
-                    switch (this->version) {
-                        case CxxVersion::cpp11:
-                            cmd->append("--std=c++11");
-                            break;
-                        case CxxVersion::cpp14:
-                            cmd->append("--std=c++14");
-                            break;
-                        case CxxVersion::cpp17:
-                            cmd->append("--std=c++17");
-                            break;
-                        case CxxVersion::cpp20:
-                            cmd->append("--std=c++20");
-                            break;
-                        case CxxVersion::cpp23:
-                            cmd->append("--std=c++23");
-                            break;
-                        default:
-                            throw std::invalid_argument("Unknown cpp version");
-                    }
-                }
-
-
-                for (const auto &include : includeDirs) {
-                    std::string includeArg;
-                    includeArg += "-I";
-                    includeArg += include;
-                    cmd->append(includeArg);
-                }
-
-                for (const auto &linkDir : linkDirs) {
-                    std::string linkDirArg;
-                    linkDirArg += "-L";
-                    linkDirArg += linkDir;
-                    cmd->append(linkDirArg);
-                }
-
-                for (const auto &linkFile : linkFiles) {
-                    std::string linkFileArg;
-                    linkFileArg += "-l";
-                    linkFileArg += linkFile;
-                    cmd->append(linkFileArg);
-                }
-
-                for (const auto &flag : flags) {
-                    cmd->append(flag);
-                }
-            }
-
-            static FileType get_file_type_from_ext(std::string path) {
-                std::string ext = fs::path(path).extension();
-
-                if (ext == ".cpp") return FileType::cpp;
-                else if (ext == ".c") return FileType::c;
-                else if (ext == ".h") return FileType::h;
-                else if (ext == ".hpp") return FileType::hpp;
-                else throw std::invalid_argument(ext + " is an unknown extension");
-            }
-
+            std::vector<std::string> run_args;
+            Compiler_t compiler;
+            Std_t std;
+            BuildType build_type;
+            bool parallel, export_compile, incremental;
+            std::string project_name;
+            std::string output_dir;
 
             // To handle variadic recursion
             void append_flag() {}
@@ -343,44 +695,47 @@ namespace qbs {
             void append_source_file() {}
             void append_link_file() {}
 
-            int build_and_run() {
-                if (this->buildType == BuildType::lib) {
-                    throw std::logic_error("Cannot run a library");
-                }
-
-                int buildCode = this->build();
-            
-                if (buildCode != 0) {
-                    return buildCode;
-                }
-                    
-                std::string exe = "./" + projectName;
-
-                for (const auto &arg : this->runArgs) {
-                    exe += " ";
-                    exe += arg;
-                }
-
-                Cmd cmd(exe);
-
-                return cmd.run();
-            }
         public:
 
-            Build(std::string projectName,
-                  std::string outputDir = "./",
-                  BuildType buildType = BuildType::exe,
-                  CxxVersion version = CxxVersion::cpp20,
-                  Compiler compiler = Compiler::gpp) {
-                this->projectName = projectName;
-                this->version = version;
-                this->compiler = compiler;
-                this->buildType = buildType;
+            /**
+             * @brief Build constructor defaults:
+             *        std = Stds::CXX20
+             *        compiler = Compilers::GPP
+             *        build_type = BuildType::exe
+             *        output_dir = "./build/"
+             *        parallel = true
+             *        incremental = true
+             *        export_compile = true
+             *
+             * @param project_name The name of the project. Used as final executable name
+             */
+            Build(std::string project_name) {
+                this->project_name = project_name;
+                this->std = Stds::CXX20;
+                this->compiler = Compilers::GPP;
+                this->build_type = BuildType::EXE;
+                this->output_dir = "./build/";
+                this->parallel = true;
+                this->incremental = true;
+                this->export_compile = true;
+            }
 
-                if (outputDir[outputDir.length() - 1] != '/') {
-                    outputDir += '/';
-                }
-                this->outputDir = outputDir;
+            /**
+             * @brief Set whether to build parallel or not
+             *
+             * @param parallel The parallel value
+             */
+            void set_parallel(bool parallel) {
+                this->parallel = parallel;
+            }
+
+            /**
+             * @brief Set whether to incrementally build project or not
+             *
+             * @param incremental the incremental value
+             */
+            void set_incremental(bool incremental) {
+                this->incremental = incremental;
             }
 
             /**
@@ -388,8 +743,8 @@ namespace qbs {
              *
              * @param version The target CxxVersion
              */
-            void set_cxx_version(CxxVersion version) {
-                this->version = version;
+            void set_std(Std_t std) {
+                this->std = std;
             }
 
             /**
@@ -397,17 +752,17 @@ namespace qbs {
              *
              * @param compiler The target Compiler 
              */
-            void set_compiler(Compiler compiler) {
+            void set_compiler(Compiler_t compiler) {
                 this->compiler = compiler;
             }
 
             /**
              * @brief Sets the build type (Executable, or library)
              *
-             * @param buildType The target BuildType
+             * @param build_type The target BuildType
              */
-            void set_build_type(BuildType buildType) {
-                this->buildType = buildType;
+            void set_build_type(BuildType build_type) {
+                this->build_type = build_type;
             }
 
             /**
@@ -426,7 +781,16 @@ namespace qbs {
                     path += '/';
                 }
 
-                this->outputDir = path;
+                this->output_dir = path;
+            }
+
+            /**
+             * @brief Set whether to export compile commands or not
+             *
+             * @param export_compile the export value
+             */
+            void set_export_compile_commands(bool export_compile) {
+                this->export_compile = export_compile;
             }
 
             /**
@@ -434,6 +798,29 @@ namespace qbs {
              */
             void enable_warnings() {
                 this->append_flag("Wall", "Wextra");
+            }
+
+            /**
+             * @brief Rebuilds the build source file and runs the new executable
+             *        if any changes have been detected to the source file
+             *
+             * @param argc From main function
+             * @param argv From main function
+             * @param FILE_NAME The file name of the source file
+             *        Recommended to pass __FILE__ as the value
+             */
+            static void rebuild_self(const int argc, char **argv, const std::string FILE_NAME) {
+                assert (argc >= 1 && "Malformed cli arguments");
+
+                if (Utils::file_older(FILE_NAME, argv[0]) == -1) {
+                    Cmd cmd;
+                    cmd.append("g++", FILE_NAME, "-o", argv[0]);
+                    cmd.run();
+
+                    cmd.set_length(0);
+                    cmd.append("./" + std::string(argv[0]));
+                    std::exit(cmd.run());
+                }
             }
 
 
@@ -449,12 +836,12 @@ namespace qbs {
                     throw std::invalid_argument(path + " is not a file!");
                 }
 
-                std::string fileExt = fs::path(path).extension();
+                std::string file_ext = fs::path(path).extension();
 
-                if (fileExt != ".cpp" && fileExt != ".c")
+                if (file_ext != ".cpp" && file_ext != ".c" && file_ext != ".cc")
                     return;
                 
-                this->sourceFiles.push_back(path);
+                this->source_files.push_back(path);
 
                 this->append_source_file(args...);
             }
@@ -477,7 +864,7 @@ namespace qbs {
                     this->append_include_dir(entry.path().string());
                 }
 
-                this->includeDirs.push_back(path);
+                this->include_dirs.push_back(path);
 
                 this->append_include_dir(args...);
             }
@@ -529,7 +916,7 @@ namespace qbs {
                     throw std::invalid_argument(path + " is not a directory!");
                 }
 
-                this->linkDirs.push_back(path);
+                this->link_dirs.push_back(path);
 
                 this->append_link_dir(args...);
             }
@@ -542,27 +929,37 @@ namespace qbs {
              */
             template<typename... Args>
             void append_link_file(std::string first, Args... args) {
-                this->linkFiles.push_back(first);
+                this->link_files.push_back(first);
 
                 this->append_link_file(args...);
             }
 
             /**
-             * @brief Clears the build completely
+             * @brief Clears the build completely to defaults
+             *        compiler = Compilers::GPP
+             *        std = Stds::CXX20
+             *        build_type = BuildType::exe
+             *        output_dir = "./build/"
+             *        parallel = true
+             *        incremental = true
+             *        export_compile = true
              *
-             * @param projectName the new name for the project
+             * @param project_name the new name for the project
              */
-            void clear(std::string projectName) {
-            this->sourceFiles.clear();
-            this->includeDirs.clear();
-            this-> linkDirs.clear();
-            this->linkFiles.clear();
-            this->flags.clear();
-            this->compiler = Compiler::gpp;
-            this->version = CxxVersion::cpp23;
-            this->buildType = BuildType::exe;
-            this->projectName = projectName;
-            this->outputDir = "./";
+            void clear(std::string project_name) {
+                this->source_files.clear();
+                this->include_dirs.clear();
+                this-> link_dirs.clear();
+                this->link_files.clear();
+                this->flags.clear();
+                this->compiler = Compilers::GPP;
+                this->std = Stds::CXX20;
+                this->build_type = BuildType::EXE;
+                this->project_name = project_name;
+                this->output_dir = "./build/";
+                this->parallel = true;
+                this->incremental = true;
+                this->export_compile = true;
             }
 
 
@@ -572,56 +969,142 @@ namespace qbs {
              * @return Status codes summed up from build commands
              */
             int build() {
-                Cmd cmd;
-                int ret;
-                std::vector<std::string> oFiles;
-                FileType ft;
+                Utils::make_dir_if_not_exists(output_dir + "oFiles/");
 
-                switch (this->buildType) {
-                    case BuildType::exe:
-                        ft = Build::get_file_type_from_ext(this->sourceFiles[0]);
-                        this->prep_compile_cmd(&cmd, ft);
-                        for (const auto &file : sourceFiles) {
-                            cmd.append(file);
-                        }   
-                        cmd.append("-o", outputDir + projectName);
-                        ret = cmd.run();
+                int ret = 0;
+                std::vector<std::string> o_files;
+                std::vector<std::future<int>> results;
+                std::vector<Cmd*> cmds;
+                std::ofstream export_file;
+                const std::string ROOT_DIR = fs::current_path();
+                bool build_final_product = false;
 
-                        return ret;
-                    case BuildType::lib:
-                        ret = 0;
+                if (this->export_compile) {
+                    export_file.open(output_dir + "compile_commands.json");
 
-                        for (const auto &file : sourceFiles) {
-                            ft = Build::get_file_type_from_ext(file);
-                            cmd.set_length(0);
-                            this->prep_compile_cmd(&cmd, ft);
+                    export_file << "[\n";
+                }
+                
+                
+                for (const auto &src : this->source_files) {
+                    Cmd *cmd = new Cmd();
+                    auto src_path = fs::path(src);
+                    std::string ext = src_path.extension();
+                    std::string file_name = src_path.stem();
+                    const std::string OUTPUT_FILE = this->output_dir + "oFiles/" + file_name + ".o";
 
-                            std::string fileName = fs::path(file).stem();
-                            
-                            cmd.append("-c", file, "-o", outputDir + fileName + ".o");
-                            oFiles.push_back(outputDir + fileName + ".o");
 
-                            ret += cmd.run();
+                    cmd->append(this->compiler.cmd_base);
+
+                    for (const auto &include : include_dirs) {
+                        std::string include_arg;
+                        include_arg += "-I";
+                        include_arg += include;
+                        cmd->append(include_arg);
+                    }
+
+                    for (const auto &link_dir : link_dirs) {
+                        std::string link_dir_arg;
+                        link_dir_arg += "-L";
+                        link_dir_arg += link_dir;
+                        cmd->append(link_dir_arg);
+                    }
+
+                    for (const auto &link_file : link_files) {
+                        std::string link_file_arg;
+                        link_file_arg += "-l";
+                        link_file_arg += link_file;
+                        cmd->append(link_file_arg);
+                    }
+
+                    for (const auto &flag : flags) {
+                        cmd->append(flag);
+                    }
+
+                    if (this->std.extension == ext) {
+                        cmd->append(this->std.version_flag);
+                    }
+
+                    cmd->append("-c", "-o", OUTPUT_FILE, src);
+
+                    o_files.push_back(OUTPUT_FILE);
+
+                    if (this->export_compile) {
+                        export_file << "\t{\n"
+                                   << "\t\t\"directory\": \"" << ROOT_DIR << "\",\n"
+                                   << "\t\t\"command\": \"" << cmd->string() << "\",\n"
+                                   << "\t\t\"file\": \"" << src << "\",\n"
+                                   << "\t\t\"output\": \"" << OUTPUT_FILE << "\",\n"
+                                   << "\t},\n";
+                    }
+
+                    if (this->incremental && Utils::file_older(src, OUTPUT_FILE) != 1) {
+                        if (this->parallel) {
+                            results.push_back(cmd->run_async());
+                            cmds.push_back(cmd);
+                        } else {
+                            ret += cmd->run();
+                            delete cmd;
                         }
 
-                        cmd.set_length(0);
+                        build_final_product = true;
+                    } else {
+                        delete cmd;
+                    }
+                }
 
-                        cmd.append("ar", "rcs", outputDir + "lib" + projectName + ".a");
+                if (this->export_compile) {
+                    export_file << "]";
+                    export_file.close();
+                }
 
-                        for (const auto &oFile : oFiles) {
-                            cmd.append(oFile);
+                if (this->parallel) {
+                    assert(results.size() == cmds.size() && "Results and Cmds differ in size");
+                
+                    for (int i = 0; i < results.size(); ++i) {
+                        ret += results[i].get();
+                        delete cmds[i];
+                    }
+                }
+
+                if (build_final_product) {
+                    Cmd cmd;
+                    
+                    if (this->build_type == BuildType::EXE) {
+                        cmd.append(this->compiler.cmd_base);
+                        
+                        for (const auto &o : o_files) {
+                            cmd.append(o);
+                        }
+
+                        for (const auto &L : this->link_dirs) {
+                            cmd.append("-L", L);
+                        }
+
+                        for (const auto &l : this->link_files) {
+                            cmd.append("-l", l);
+                        }
+
+                        cmd.append("-o", this->output_dir + this->project_name);
+
+                        ret += cmd.run();
+                    } else if (build_type == BuildType::LIB) {
+                        cmd.append("ar", "rvs", this->output_dir + "lib" + this->project_name + ".a");
+
+                        for (const auto &o : o_files) {
+                            cmd.append(o);
                         }
 
                         ret += cmd.run();
-
-                        return ret;
-                    default:
-                        throw std::invalid_argument("Unknown build type");
+                    } else {
+                        throw std::runtime_error("UNREACHABLE: How did you get here?");
+                    }
+                } else {
+                    Loggers::stdout.log_info("Target " + project_name + " already up to date") << std::endl;
                 }
 
 
-
-
+                return ret;
             }
 
 
@@ -636,8 +1119,40 @@ namespace qbs {
              */
             template<typename... Args>
             int build_and_run(std::string arg, Args... args) {
-                this->runArgs.push_back(arg);
+                this->run_args.push_back(arg);
                 return build_and_run(args...);
+            }
+
+            
+            /**
+             * @brief Build the project then run the final executable WITHOUT any cli arguments
+             *        DOES NOT WORK IF BuildType IS LIBRARY
+             *
+             * @return Status code from build or final executable if built properly
+             */
+            int build_and_run() {
+                if (this->build_type == BuildType::LIB) {
+                    throw std::logic_error("Cannot run a library");
+                }
+
+                int build_code = this->build();
+            
+                if (build_code != 0) {
+                    return build_code;
+                }
+                    
+                std::string exe = this->output_dir + project_name;
+
+                for (const auto &arg : this->run_args) {
+                    exe += " ";
+                    exe += arg;
+                }
+
+                Cmd cmd(exe);
+
+                auto result = cmd.run_redirect_output();
+
+                return result;
             }
     };
 
