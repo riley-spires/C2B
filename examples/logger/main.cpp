@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
     c2b::Logger logger(log);
 
     std::cout << "Hello, World!" << std::endl;
-    logger.log_info("Outputted 'Hello, World!'") << std::endl;
+    logger.log_info("Outputted 'Hello, World!'");
 
     log.close();
 

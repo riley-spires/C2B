@@ -173,7 +173,7 @@ namespace c2b {
 
             enum Level { INFO, ERROR, WARNING, FATAL };
 
-            std::ostream& log(Level level, std::string msg) {
+            void log(Level level, std::string msg) {
                 switch (level) {
                     case INFO:
                         log_info(msg);
@@ -190,44 +190,33 @@ namespace c2b {
                     default:
                         throw std::invalid_argument("Unknown log level");
                 }
-
-                return stream;
             }
             
             /**
              * @brief Log a message to the provided stream with info level
              *
              * @param msg The message to log
-             * @return reference to the stream
              */
-            std::ostream& log_info(std::string msg) {
-                stream << "[INFO] " << msg;
-
-                return stream;
+            void log_info(std::string msg) {
+                stream << "[INFO] " << msg << std::endl;
             }
 
             /**
              * @brief Log a message to the provided stream with error level
              *
              * @param msg The message to log
-             * @return reference to the stream
              */
-            std::ostream& log_error(std::string msg) {
-                stream << "[ERROR] " << msg;
-
-                return stream;
+            void log_error(std::string msg) {
+                stream << "[ERROR] " << msg << std::endl;
             }
 
             /**
              * @brief Log a message to the provided stream with warning level
              *
              * @param msg The message to log
-             * @return reference to the stream
              */
-            std::ostream& log_warning(std::string msg) {
-                stream << "[WARNING] " << msg;
-
-                return stream;
+            void log_warning(std::string msg) {
+                stream << "[WARNING] " << msg << std::endl;
             }
 
             /**
@@ -238,7 +227,7 @@ namespace c2b {
              * @param exit_code The exit code to exit with
              */
             void log_fatal(std::string msg,  int exit_code = 1) {
-                stream << "[FATAL] " << msg;
+                stream << "[FATAL] " << msg << std::endl;
 
                 std::exit(exit_code);
             }
@@ -267,7 +256,7 @@ namespace c2b {
             void print() {
                 std::string cmd = this->string();
                 
-                Loggers::stdout.log_info(cmd) << std::endl;
+                Loggers::stdout.log_info(cmd);
             }
         public:
             template<typename... Args>
@@ -1100,7 +1089,7 @@ namespace c2b {
                         throw std::runtime_error("UNREACHABLE: How did you get here?");
                     }
                 } else {
-                    Loggers::stdout.log_info("Target " + project_name + " already up to date") << std::endl;
+                    Loggers::stdout.log_info("Target " + project_name + " already up to date");
                 }
 
 
