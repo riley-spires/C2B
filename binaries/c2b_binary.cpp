@@ -2,18 +2,61 @@
 #include <iostream>
 #include "c2b.h"
 
+int display_help();
+int new_project(std::string project_name);
+int build_project(std::string project_name);
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cout << "Usage: c2b <project_name>" << std::endl;
-        return 1;
+    if (argc < 2) {
+        return display_help();
+    }
+    c2b::Logger logger = c2b::Loggers::stdout;
+
+    std::string subcommand = argv[1];
+
+    if (subcommand == "new") {
+        if (argc < 3) {
+            return display_help();
+        }
+
+        std::string project_name = argv[2];
+
+        return new_project(project_name);
+    } else if (subcommand == "build") {
+        std::string project_file_path = "c2b.cpp";
+        if (argc >= 3) {
+            project_file_path = argv[2];
+        }  
+
+        return build_project(project_file_path);
+    } else if (subcommand == "help") {
+        return display_help();
+    } else {
+        logger.log_error("Invalid subcommand: " + subcommand);
+        return display_help();
     }
 
-    std::string project_name = argv[1];
+    return 0;
+}
 
-    std::cout << "Generating basic project for " << project_name << "..." << std::endl;
+int display_help() {
+    c2b::Logger logger = c2b::Loggers::stdout;
 
-    c2b::Utils::make_dir_if_not_exists(project_name);
+    logger.log_info("Usage: c2b_binary <new|build|help> {options}");
+    logger.log_info("     new: Creates a new project");
+    logger.log_info("          Usage: c2b_binary new <project_name>");
+    logger.log_info("     build: Builds the project in the current directory");
+    logger.log_info("          Usage: c2b_binary build [project_file_path = c2b.cpp]");
+    logger.log_info("     help: Displays this help message");
+    return 1;
+}
+
+int new_project(std::string project_name) {
+    c2b::Logger logger = c2b::Loggers::stdout;
+    logger.log_info("Generating " + project_name + "...");
+
+    c2b::Utils::make_dir_if_not_exists(project_name + "/build");
+    c2b::Utils::make_dir_if_not_exists(project_name + "/src");
 
     std::ofstream file(project_name + "/c2b.cpp");
 
@@ -21,17 +64,45 @@ int main(int argc, char* argv[]) {
 
     file << "int main(int argc, char* argv[]) {" << std::endl;
 
-    file << "\tc2b::Build::build_self(argc, argv, __FILE__);" << std::endl;
-    file << "\tc2b::Build build(\"main\")" << std::endl;
+    file << "    c2b::Build::rebuild_self(argc, argv, __FILE__);" << std::endl;
+    file << "    c2b::Build build(\"main\");" << std::endl << std::endl;
 
-    file << "\treturn build.build_and_run();" << std::endl;
+    file << "    build.append_source_dir(\"src\");" << std::endl << std::endl;
+
+    file << "    return build.build_and_run();" << std::endl;
     file << "}" << std::endl;
 
     file.close();
 
+    file.open(project_name + "/src/main.cpp");
+
+    file << "#include <iostream>" << std::endl << std::endl;
+
+    file << "int main() {" << std::endl;
+    file << "    std::cout << \"Hello World!\" << std::endl;" << std::endl;
+    file << "    return 0;" << std::endl;
+    file << "}" << std::endl;
+
+    file.close();
+
+
     c2b::Cmd cmd;
 
-    cmd.append("g++", project_name + "/c2b.cpp", "-o", project_name + "/c2b");
+    cmd.append("g++", project_name + "/c2b.cpp", "-o", project_name + "/build" + "/build-project");
 
     return cmd.run();
+}
+
+int build_project(std::string project_file_path) {
+    c2b::Utils::make_dir_if_not_exists("build");
+    c2b::Cmd cmd;
+
+    if (!c2b::Utils::file_exists("build/build-project")) {
+        cmd.append("g++", "c2b.cpp", "-o", "build/build-project");
+        cmd.run();
+        cmd.clear();
+    }
+
+    cmd.append("./build/build-project");
+    return cmd.run_redirect_output();
 }

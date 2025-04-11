@@ -280,14 +280,12 @@ namespace c2b {
     
             
             /**
-             * @brief Sets the length of the cmd
-             *        Main use is to reuse a Cmd object by set_length(0)
+             * @brief Clears the cmd
              *
-             * @param length The new length
              */
-            void set_length(size_t length) {
-                this->length = length;
-                this->args.resize(length);
+            void clear() {
+                this->length = 0;
+                this->args.clear();
             }
 
             /**
@@ -415,7 +413,7 @@ namespace c2b {
                 
 
                         while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
-                            /*buffer[count] = '\0';*/
+                            buffer[count] = '\0';
                             std::stringstream ss(buffer.data());
                             std::string line;
                             while (std::getline(ss, line)) {
@@ -465,12 +463,14 @@ namespace c2b {
                         ssize_t count;
 
                         while ((count = read(stdout_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            buffer[count] = '\0';
                             std_stream << buffer.data();
-                        
                         }
                         close(stdout_pipe[0]);
 
+
                         while ((count = read(stderr_pipe[0], buffer.data(), buffer.size() - 1)) > 0) {
+                            buffer[count] = '\0';
                             err_stream << buffer.data();
                         }
                         close(stderr_pipe[0]);
@@ -486,8 +486,8 @@ namespace c2b {
                 });
             }
 
-            int run_redirect_output(std::ostream &stream = std::cout) {
-                return this->run_async_redirect_output(stream).get();
+            int run_redirect_output(std::ostream &std_stream = std::cout, std::ostream &err_stream = std::cerr) {
+                return this->run_async_redirect_output(std_stream, err_stream).get();
             }
     };
 
@@ -570,7 +570,7 @@ namespace c2b {
                     }
 
                     ret += cmd.run();
-                    cmd.set_length(0);
+                    cmd.clear();
                     
                     int count = file.string().length() - ext.length();
                     file = fs::path(file.string().substr(0, count));
@@ -806,7 +806,7 @@ namespace c2b {
                     cmd.append("g++", FILE_NAME, "-o", argv[0]);
                     cmd.run();
 
-                    cmd.set_length(0);
+                    cmd.clear();
                     cmd.append("./" + std::string(argv[0]));
                     std::exit(cmd.run());
                 }
