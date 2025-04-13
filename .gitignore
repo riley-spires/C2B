@@ -32,9 +32,9 @@
 *.app
 
 # Binaries
-binaries/installer
-binaries/c2b
-binaries/libc2b.a
+**/installer
+**/c2b
+**/libc2b.a
 
 # Example binaries
 **/build
