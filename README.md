@@ -5,32 +5,21 @@
 > It may not support all the features you need yet
 > and it may never!
 
+## Supported Platforms
+
+| Platform | Supported |
+| -------- | --------- |
+| Linux    | ✅        |
+| macOS    | ✅        |
+| Windows  | ✅ (WSL)  |
 
 ## Getting Started
 
-Copy `c2b.h` into your project
-
-The simplest use case is:
-```c++
-// c2b.cpp
-#include "c2b.h"
-
-int main() {
-    c2b::Build build("main");
-
-    build.append_src_dir("src");
-
-    return build.build();
-}
-```
-
-Then bootstrap the build with your favorite c++ compiler
-```console
-g++ c2b.cpp -o c2b
-./c2b
-```
-
-For more advanced use cases see the [examples](./examples)
+1. Download the latest release from [here](https://github.com/riley-spires/C2B/releases) (Note: Only the `main` branch gets compiled)
+2. Extract the archive
+3. Run the `install.sh` script
+4. Run `c2b help` to see the help menu
+5. See the [examples](https://github.com/riley-spires/C2B/tree/main/examples) folder
 
 ## Dependencies
 
