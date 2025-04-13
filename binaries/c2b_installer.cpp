@@ -42,8 +42,14 @@ void display_help(c2b::Logger logger) {
 }
 
 int install(c2b::Logger logger) {
-    const std::string header_install_path = "/usr/local/include";
-    const std::string binary_install_path = "/usr/local/bin";
+    const std::string header_install_path = "/opt/c2b/include";
+    const std::string binary_install_path = "/opt/c2b/bin";
+
+    c2b::Utils::make_dir_if_not_exists(header_install_path);
+    c2b::Utils::make_dir_if_not_exists(binary_install_path);
+
+    const std::string symlink_header_path = "/usr/local/include";
+    const std::string symlink_binary_path = "/usr/local/bin/c2b";
 
     logger.log_info("Installing C2B...");
 
@@ -63,6 +69,18 @@ int install(c2b::Logger logger) {
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to install C2B binary!");
     }
+    cmd.clear();
+
+    cmd.append("ln", "-s", header_install_path + "/c2b.h", symlink_header_path + "/c2b.h");
+    if (cmd.run() != 0) {
+        logger.log_fatal("Failed to symlink C2B header!");
+    }
+    cmd.clear();
+
+    cmd.append("ln", "-s", binary_install_path + "/c2b", symlink_binary_path);
+    if (cmd.run() != 0) {
+        logger.log_fatal("Failed to symlink C2B binary!");
+    }
 
     logger.log_info("C2B installed successfully!");
 
@@ -76,6 +94,10 @@ int uninstall(c2b::Logger logger) {
     cmd.run();
     cmd.clear();
     cmd.append("rm", "-f", "/usr/local/bin/c2b");
+    cmd.run();
+    cmd.clear();
+
+    cmd.append("rm", "-rf", "/opt/c2b");
     cmd.run();
 
     logger.log_info("C2B uninstalled successfully!");
