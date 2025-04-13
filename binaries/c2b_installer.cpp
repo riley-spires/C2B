@@ -53,12 +53,12 @@ int install(c2b::Logger logger) {
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to install C2B header!");
     }
-    cmd.set_length(0);
+    cmd.clear();
     cmd.append("g++", "c2b_binary.cpp", "-o", "c2b");
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to compile C2B binary!");
     }
-    cmd.set_length(0);
+    cmd.clear();
     cmd.append("cp", "c2b", binary_install_path + "/c2b");
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to install C2B binary!");
@@ -74,7 +74,7 @@ int uninstall(c2b::Logger logger) {
     c2b::Cmd cmd;
     cmd.append("rm", "-rf", "/usr/local/include/c2b.h");
     cmd.run();
-    cmd.set_length(0);
+    cmd.clear();
     cmd.append("rm", "-f", "/usr/local/bin/c2b");
     cmd.run();
 
