@@ -429,14 +429,14 @@ namespace c2b {
     void Build::rebuild_self(const int argc, char **argv, const std::string FILE_NAME) {
         assert (argc >= 1 && "Malformed cli arguments");
 
-        if (Utils::file_older(FILE_NAME, argv[0]) == -1) {
+        if (Utils::file_older(FILE_NAME, argv[0]) == 2) {
             Cmd cmd;
-            cmd.append("g++", FILE_NAME, "-o", argv[0]);
+            cmd.append("g++","-lc2b", FILE_NAME, "-o", argv[0]);
             cmd.run();
 
             cmd.clear();
-            cmd.append("./" + std::string(argv[0]));
-            std::exit(cmd.run());
+            cmd.append(std::string(argv[0]));
+            std::exit(cmd.run_redirect_output());
         }
     }
 

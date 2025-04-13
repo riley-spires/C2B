@@ -65,6 +65,18 @@ namespace c2b {
         const Std_t CXX20 = { .version_flag = "-std=c++20", .extension = "cpp" };
         const Std_t CXX23 = { .version_flag = "-std=c++23", .extension = "cpp" };
     }
+
+    namespace TermColors {
+        const std::string RED = "\033[0;31m";
+        const std::string GREEN = "\033[0;32m";
+        const std::string YELLOW = "\033[0;33m";
+        const std::string BLUE = "\033[0;34m";
+        const std::string MAGENTA = "\033[0;35m";
+        const std::string CYAN = "\033[0;36m";
+        const std::string WHITE = "\033[0;37m";
+        const std::string RESET = "\033[0m";
+    }
+
     enum BuildType { EXE, LIB };
     enum FetchType { GIT, HTTP };
     enum OS { WIN, MAC, LINUX, UNKNOWN };
