@@ -4,7 +4,7 @@
 
 int display_help();
 int new_project(std::string project_name);
-int build_project(std::string project_name);
+int build_project(std::string project_name, bool always_rebuild);
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -24,11 +24,18 @@ int main(int argc, char* argv[]) {
         return new_project(project_name);
     } else if (subcommand == "build") {
         std::string project_file_path = "c2b.cpp";
+        bool always_rebuild = false;
         if (argc >= 3) {
-            project_file_path = argv[2];
+            std::string arg2 = argv[2];
+
+            if (arg2 == "-B") {
+                always_rebuild = true;
+            } else {
+                project_file_path = arg2;
+            }
         }  
 
-        return build_project(project_file_path);
+        return build_project(project_file_path, always_rebuild);
     } else if (subcommand == "help") {
         return display_help();
     } else {
@@ -44,9 +51,11 @@ int display_help() {
 
     logger.log_info("Usage: c2b_binary <new|build|help> {options}");
     logger.log_info("     new: Creates a new project");
-    logger.log_info("          Usage: c2b_binary new <project_name>");
+    logger.log_info("          Usage: c2b_binary new <project_name> {flags}");
     logger.log_info("     build: Builds the project in the current directory");
     logger.log_info("          Usage: c2b_binary build [project_file_path = c2b.cpp]");
+    logger.log_info("          Flags:");
+    logger.log_info("              -B: Always rebuild the project");
     logger.log_info("     help: Displays this help message");
     return 1;
 }
@@ -93,11 +102,18 @@ int new_project(std::string project_name) {
     return cmd.run();
 }
 
-int build_project(std::string project_file_path) {
-    c2b::Utils::make_dir_if_not_exists("build");
+int build_project(std::string project_file_path, bool always_rebuild) {
     c2b::Cmd cmd;
+    if (always_rebuild) {
+        cmd.append("rm", "-rf", "build");
+        cmd.run();
+        cmd.clear();
+    }
 
-    if (!c2b::Utils::file_exists("build/build-project")) {
+    c2b::Utils::make_dir_if_not_exists("build");
+
+
+    if (always_rebuild || !c2b::Utils::file_exists("build/build-project")) {
         cmd.append("g++", "c2b.cpp", "-o", "build/build-project");
         cmd.run();
         cmd.clear();
