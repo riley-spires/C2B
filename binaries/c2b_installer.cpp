@@ -58,7 +58,7 @@ int install(c2b::Logger logger) {
 
     c2b::Cmd cmd;
 
-    cmd.append("g++", "../c2b.cpp", "-c", "-o", "libc2b.a");
+    cmd.append("g++", "../c2b.cpp", "-O3",  "-c", "-o", "libc2b.a");
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to compile C2B");
     }
@@ -76,7 +76,7 @@ int install(c2b::Logger logger) {
     }
     cmd.clear();
 
-    cmd.append("g++", "c2b_binary.cpp", "-o", "c2b", "-L.", "-lc2b");
+    cmd.append("g++", "c2b_binary.cpp", "-O3", "-o", "c2b", "-L.", "-lc2b");
     if (cmd.run() != 0) {
         logger.log_fatal("Failed to compile C2B binary!");
     }
