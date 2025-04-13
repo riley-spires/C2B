@@ -21,19 +21,52 @@ namespace c2b {
     }
 
     void Logger::log_info(std::string msg) {
-        this->stream << "[INFO] " << msg << std::endl;
+        if (this->color) {
+            this->stream << c2b::TermColors::GREEN;
+        }
+        this->stream << "[INFO] ";
+        if (this->color) {
+            this->stream << c2b::TermColors::RESET;
+        }
+
+        this->stream << msg << std::endl;
     }
 
     void Logger::log_error(std::string msg) {
-        this->stream << "[ERROR] " << msg << std::endl;
+        if (this->color) {
+            this->stream << c2b::TermColors::RED;
+        }
+        this->stream << "[ERROR] ";
+        if (this->color) {
+            this->stream << c2b::TermColors::RESET;
+        }
+        this->stream << msg << std::endl;
     }
 
     void Logger::log_warning(std::string msg) {
-        this->stream << "[WARNING] " << msg << std::endl;
+        if (this->color) {
+            this->stream << c2b::TermColors::YELLOW;
+        }
+        this->stream << "[WARNING] ";
+        if (this->color) {
+            this->stream << c2b::TermColors::RESET;
+        }
+
+        this->stream << msg << std::endl;
     }
 
     void Logger::log_fatal(std::string msg, int exit_code) {
-        this->stream << "[FATAL] " << msg << std::endl;
+        if (this->color) {
+            this->stream << c2b::TermColors::RED;
+        }
+        this->stream << "[FATAL] " << msg;
+        if (this->color) {
+            this->stream << c2b::TermColors::RESET;
+        }
+
+        if (this->color) {
+            this->stream << c2b::TermColors::RESET;
+        }
 
         std::exit(exit_code);
     }

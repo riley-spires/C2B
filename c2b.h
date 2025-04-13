@@ -178,8 +178,11 @@ namespace c2b {
     class Logger {
         private:
             std::ostream &stream;
+            bool color;
         public:
-            Logger(std::ostream &stream) : stream(stream) {}
+            Logger(std::ostream &stream, bool color = true) : stream(stream) {
+                this->color = color;
+            }
 
             enum Level { INFO, ERROR, WARNING, FATAL };
 
