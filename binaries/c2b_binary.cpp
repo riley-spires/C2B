@@ -30,6 +30,10 @@ int main(int argc, char* argv[]) {
 
             if (arg2 == "-B") {
                 always_rebuild = true;
+
+                if (argc >= 4) {
+                    project_file_path = argv[3];
+                }
             } else {
                 project_file_path = arg2;
             }
@@ -97,7 +101,7 @@ int new_project(std::string project_name) {
 
     c2b::Cmd cmd;
 
-    cmd.append("g++", project_name + "/c2b.cpp", "-o", project_name + "/build" + "/build-project");
+    cmd.append("g++", project_name + "/c2b.cpp", "-o", project_name + "/build" + "/build-project", "-lc2b");
 
     return cmd.run();
 }
@@ -114,7 +118,7 @@ int build_project(std::string project_file_path, bool always_rebuild) {
 
 
     if (always_rebuild || !c2b::Utils::file_exists("build/build-project")) {
-        cmd.append("g++", "c2b.cpp", "-o", "build/build-project");
+        cmd.append("g++", project_file_path, "-o", "build/build-project", "-lc2b");
         cmd.run();
         cmd.clear();
     }
