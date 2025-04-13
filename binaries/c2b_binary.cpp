@@ -1,6 +1,6 @@
 #include <fstream>
 #include <iostream>
-#include "c2b.h"
+#include "../c2b.h"
 
 int display_help();
 int new_project(std::string project_name);
