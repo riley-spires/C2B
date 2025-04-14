@@ -75,7 +75,7 @@ int new_project(std::string project_name) {
 
     file << "#include <c2b.h>" << std::endl << std::endl;
 
-    file << "int main(int argc, char* argv[]) {" << std::endl;
+    file << "int main(int argc, char** argv) {" << std::endl;
 
     file << "    c2b::Build::rebuild_self(argc, argv, __FILE__);" << std::endl;
     file << "    c2b::Build build(\"main\");" << std::endl << std::endl;
@@ -98,12 +98,7 @@ int new_project(std::string project_name) {
 
     file.close();
 
-
-    c2b::Cmd cmd;
-
-    cmd.append("g++", project_name + "/c2b.cpp", "-o", project_name + "/build" + "/build-project", "-lc2b");
-
-    return cmd.run();
+    return 0;
 }
 
 int build_project(std::string project_file_path, bool always_rebuild) {
