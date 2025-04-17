@@ -251,6 +251,10 @@ namespace c2b {
                 Loggers::stdout.log_info(cmd);
             }
         public:
+
+            // Type alias since caputred output is a messy long type
+            using Captured_Output_t = std::tuple<int, std::vector<std::string>, std::vector<std::string>>;
+
             template<typename... Args>
             Cmd(Args... args) : args{std::forward<Args>(args)...} {
                 this->length = this->args.size();
@@ -311,14 +315,14 @@ namespace c2b {
              *
              * @return The return code, stdout, and stderr of cmd ran
              */
-            std::tuple<int, std::vector<std::string>, std::vector<std::string>> run_capture_output();
+            Captured_Output_t run_capture_output();
 
             /**
              * @brief Runs the command asynchronouly, capturing stdout & stderr
              *
              * @return A future with the return code, stdout, and stderr of the cmd
              */
-            std::future<std::tuple<int, std::vector<std::string>, std::vector<std::string>>> run_async_capture_output();
+            std::future<Captured_Output_t> run_async_capture_output();
 
             std::future<int> run_async_redirect_output(std::ostream &std_stream = std::cout, std::ostream &err_stream = std::cerr);
 
@@ -353,6 +357,7 @@ namespace c2b {
             void append_link_file() {}
 
         public:
+
 
             /**
              * @brief Build constructor defaults:
@@ -557,7 +562,7 @@ namespace c2b {
             /**
              * @brief Build the project
              *
-             * @return Status codes summed up from build commands
+             * @return 0 if build was successful, error code from failed command otherwise
              */
             int build(); 
 

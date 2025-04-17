@@ -509,10 +509,8 @@ namespace c2b {
     
     int Build::build() {
         Utils::make_dir_if_not_exists(output_dir + "oFiles/");
-
-        int ret = 0;
         std::vector<std::string> o_files;
-        std::vector<std::future<int>> results;
+        std::vector<std::future<Cmd::Captured_Output_t>> results;
         std::vector<Cmd*> cmds;
         std::ofstream export_file;
         const std::string ROOT_DIR = fs::current_path();
@@ -579,11 +577,18 @@ namespace c2b {
 
             if (this->incremental && Utils::file_older(src, OUTPUT_FILE) != 1) {
                 if (this->parallel) {
-                    results.push_back(cmd->run_async());
+                    results.push_back(cmd->run_async_capture_output());
                     cmds.push_back(cmd);
                 } else {
-                    ret += cmd->run();
+                    auto result = cmd->run_capture_output();
                     delete cmd;
+                    if (std::get<0>(result) != 0) {
+                        for (const auto &line : std::get<2>(result)) {
+                            std::cerr << line << std::endl;
+                        }
+                    }
+
+                    return std::get<0>(result);
                 }
 
                 build_final_product = true;
@@ -601,8 +606,15 @@ namespace c2b {
             assert(results.size() == cmds.size() && "Results and Cmds differ in size");
         
             for (int i = 0; i < results.size(); ++i) {
-                ret += results[i].get();
+                auto result = results[i].get();
                 delete cmds[i];
+
+                if (std::get<0>(result) != 0) {
+                    for (const auto &line : std::get<2>(result)) {
+                        std::cerr << line << std::endl;
+                    }
+                    return std::get<0>(result);
+                }
             }
         }
 
@@ -626,7 +638,13 @@ namespace c2b {
 
                 cmd.append("-o", this->output_dir + this->project_name);
 
-                ret += cmd.run();
+                auto result = cmd.run_capture_output();
+                if (std::get<0>(result) != 0) {
+                    for (const auto &line : std::get<2>(result)) {
+                        std::cerr << line << std::endl;
+                    }
+                    return std::get<0>(result);
+                }   
             } else if (build_type == BuildType::LIB) {
                 cmd.append("ar", "rvs", this->output_dir + "lib" + this->project_name + ".a");
 
@@ -634,7 +652,13 @@ namespace c2b {
                     cmd.append(o);
                 }
 
-                ret += cmd.run();
+                auto result = cmd.run_capture_output();
+                if (std::get<0>(result) != 0) {
+                    for (const auto &line : std::get<2>(result)) {
+                        std::cerr << line << std::endl;
+                    }
+                    return std::get<0>(result);
+                }
             } else {
                 throw std::runtime_error("UNREACHABLE: How did you get here?");
             }
@@ -643,7 +667,7 @@ namespace c2b {
         }
 
 
-        return ret;
+        return 0;
     }
 
     int Build::build_and_run() {
